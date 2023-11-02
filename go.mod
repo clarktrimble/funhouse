@@ -1,4 +1,4 @@
-module chtest
+module funhouse
 
 go 1.21.1
 

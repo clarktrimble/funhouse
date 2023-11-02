@@ -1,10 +1,10 @@
 package main
 
 import (
-	"chtest/entity"
-	"chtest/funhouse"
 	"context"
 	"fmt"
+	"funhouse/entity"
+	"funhouse"
 )
 
 func main() {

@@ -9,7 +9,7 @@ import (
 	"github.com/ClickHouse/ch-go"
 	"github.com/ClickHouse/ch-go/proto"
 
-	"chtest/entity"
+	"funhouse/entity"
 )
 
 var (
@@ -114,6 +114,39 @@ func names() []string {
 	}
 }
 
+type Cols struct {
+	ByName map[string]proto.Column
+	Names  []string
+}
+
+func (cols Cols) Input() (input proto.Input) {
+
+	input = proto.Input{}
+
+	for _, name := range cols.Names {
+		input = append(input, proto.InputColumn{
+			Name: name,
+			Data: cols.ByName[name],
+		})
+	}
+
+	return
+}
+
+func (cols Cols) Results() (results proto.Results) {
+
+	results = proto.Results{}
+
+	for _, name := range cols.Names {
+		results = append(results, proto.ResultColumn{
+			Name: name,
+			Data: cols.ByName[name],
+		})
+	}
+
+	return
+}
+
 // Todo: think about a col type
 //   - input() and result()
 //   - per proto coltype wax on/off ??
@@ -127,7 +160,6 @@ func columns() map[string]proto.Column {
 		"name":            &proto.ColStr{},
 		"arr":             (&proto.ColStr{}).Array(),
 	}
-
 }
 
 //┌────────────────────────────ts─┬─severity_text─┬─severity_number─┬─body──┬─name─┬─arr─────────────────┐
