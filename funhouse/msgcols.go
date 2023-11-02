@@ -13,7 +13,7 @@ import (
 
 func (fh *FunHouse) GetMsgColumns(ctx context.Context) (mcs *entity.MsgCols, err error) {
 
-	mcs = entity.NewMsgCols(0)
+	mcs = &entity.MsgCols{}
 	result := results()
 
 	err = fh.Client.Do(ctx, ch.Query{
@@ -21,26 +21,25 @@ func (fh *FunHouse) GetMsgColumns(ctx context.Context) (mcs *entity.MsgCols, err
 		Result: result,
 		OnResult: func(ctx context.Context, block proto.Block) error {
 
-			blockMcs := entity.NewMsgCols(block.Rows)
+			mcs.Len += block.Rows
 			for _, col := range result {
 				switch col.Name {
 				case "ts":
-					blockMcs.Timestamps = dt64Values(col.Data)
+					mcs.Timestamps = append(mcs.Timestamps, dt64Values(col.Data)...)
 				case "severity_text":
-					blockMcs.SeverityTxts = enumValues(col.Data)
+					mcs.SeverityTxts = append(mcs.SeverityTxts, enumValues(col.Data)...)
 				case "severity_number":
-					blockMcs.SeverityNums = uint8Values(col.Data)
+					mcs.SeverityNums = append(mcs.SeverityNums, uint8Values(col.Data)...)
 				case "name":
-					blockMcs.Names = strValues(col.Data)
+					mcs.Names = append(mcs.Names, strValues(col.Data)...)
 				case "body":
-					blockMcs.Bodies = strValues(col.Data)
+					mcs.Bodies = append(mcs.Bodies, strValues(col.Data)...)
 				case "arr":
-					blockMcs.Tagses = strArrayValues(col.Data)
+					mcs.Tagses = append(mcs.Tagses, strArrayValues(col.Data)...)
 				}
 				col.Data.Reset()
 			}
 
-			mcs.Append(blockMcs)
 			return nil
 		},
 	})

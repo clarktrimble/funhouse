@@ -114,6 +114,9 @@ func names() []string {
 	}
 }
 
+// Todo: think about a col type
+//   - input() and result()
+//   - per proto coltype wax on/off ??
 func columns() map[string]proto.Column {
 
 	return map[string]proto.Column{

@@ -29,19 +29,9 @@ func NewMsgCols(size int) *MsgCols {
 	}
 }
 
-func (mcs *MsgCols) Append(vals *MsgCols) {
-
-	mcs.Len += vals.Len
-	mcs.Timestamps = append(mcs.Timestamps, vals.Timestamps...)
-	mcs.SeverityTxts = append(mcs.SeverityTxts, vals.SeverityTxts...)
-	mcs.SeverityNums = append(mcs.SeverityNums, vals.SeverityNums...)
-	mcs.Names = append(mcs.Names, vals.Names...)
-	mcs.Bodies = append(mcs.Bodies, vals.Bodies...)
-	mcs.Tagses = append(mcs.Tagses, vals.Tagses...)
-
-}
-
 func (mcs *MsgCols) Row(idx int) Msg {
+
+	// Todo: validate that cols are same len and cover idx
 
 	return Msg{
 		Timestamp: mcs.Timestamps[idx],
