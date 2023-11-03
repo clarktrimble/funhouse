@@ -7,7 +7,7 @@ import (
 )
 
 type MsgCols struct {
-	Len          int
+	Length       int
 	Timestamps   []time.Time
 	SeverityTxts []string
 	SeverityNums []uint8
@@ -19,7 +19,7 @@ type MsgCols struct {
 func NewMsgCols(size int) *MsgCols {
 
 	return &MsgCols{
-		Len:          size,
+		Length:       size,
 		Timestamps:   make([]time.Time, size),
 		SeverityTxts: make([]string, size),
 		SeverityNums: make([]uint8, size),
@@ -31,7 +31,6 @@ func NewMsgCols(size int) *MsgCols {
 
 // Todo: len check
 func (mcs *MsgCols) Chunk(name string, bgn, end int) (vals any) {
-	// cols["ts"].(*proto.ColDateTime64).AppendArr(mcs.Timestamps[idx:end])
 	switch name {
 	case "ts":
 		vals = mcs.Timestamps[bgn:end]
@@ -90,9 +89,14 @@ func (mcs *MsgCols) Append(name string, vals any) {
 	}
 }
 
+func (mcs *MsgCols) Len() int {
+
+	return mcs.Length
+}
+
 func (mcs *MsgCols) AddLen(size int) {
 
-	mcs.Len += size
+	mcs.Length += size
 }
 
 func (mcs *MsgCols) Row(idx int) Msg {
@@ -123,7 +127,7 @@ func SampleMsgCols(count int) (mcs *MsgCols) {
 		mcs.SeverityTxts[i] = "INFO"
 		mcs.SeverityNums[i] = 3
 		mcs.Names[i] = fmt.Sprintf("name-%d", i)
-		mcs.Bodies[i] = "body from cols"
+		mcs.Bodies[i] = "body from colzz"
 		mcs.Tagses[i] = []string{"sna", "foo"}
 
 		offset += rand.Intn(33)

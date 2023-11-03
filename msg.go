@@ -3,35 +3,21 @@ package funhouse
 import (
 	"context"
 	"fmt"
-	"io"
-	"time"
+	"funhouse/table"
 
 	"github.com/ClickHouse/ch-go"
-	"github.com/ClickHouse/ch-go/proto"
-
-	"funhouse/entity"
 )
 
-var (
-	MsgTable = "test_table_insert"
-)
-
-func (fh *FunHouse) CreateMsgTable(ctx context.Context) (err error) {
+func (fh *FunHouse) UpsertTable(ctx context.Context, tbl table.Table) (err error) {
 
 	err = fh.Client.Do(ctx, ch.Query{
-		Body: `CREATE TABLE IF NOT EXISTS test_table_insert
-(
-	ts                DateTime64(9),
-	severity_text     Enum8('INFO'=1, 'DEBUG'=2),
-	severity_number   UInt8,
-	body              String,
-	name              String,
-	arr               Array(String)
-) ENGINE = Memory`,
+		Body: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s\n%s", tbl.Name, tbl.Ddl),
 	})
 	return
 }
 
+// These are the og row'ish get/put's
+/*
 func (fh *FunHouse) GetMsgs(ctx context.Context) (msgs entity.Msgs, err error) {
 
 	msgs = entity.Msgs{}
@@ -99,7 +85,11 @@ func (fh *FunHouse) PutMsgs(ctx context.Context, msgs entity.Msgs) (err error) {
 	})
 	return
 }
+*/
 
+// these are the old names, columns functions
+
+/*
 func names() []string {
 
 	// order, counter-order, disorder!
@@ -114,92 +104,6 @@ func names() []string {
 	}
 }
 
-type Cols struct {
-	ByName map[string]proto.Column
-	Names  []string
-	// func (Input) Columns  -> returns "(foo, bar, baz)" formatted list of Input column names
-}
-
-//fmt.Printf(">>> col type: %T\n", col.Data)
-
-/*
-			cols["severity_text"].(*proto.ColEnum).AppendArr(mcs.SeverityTxts[idx:end])
-			cols["severity_number"].(*proto.ColUInt8).AppendArr(mcs.SeverityNums[idx:end])
-			cols["name"].(*proto.ColStr).AppendArr(mcs.Names[idx:end])
-			cols["body"].(*proto.ColStr).AppendArr(mcs.Bodies[idx:end])
-			cols["arr"].(*proto.ColArr[string]).AppendArr(mcs.Tagses[idx:end])
-	for _, col := range results {
-		found := ""
-		var valr Valuer
-
-		switch col.Data.(type) {
-		case *proto.ColDateTime64:
-			found = "*proto.ColDateTime64"
-			valr = dt64Values
-		default:
-			continue
-		}
-
-		fmt.Printf(">>> %s %s %s\n", col.Name, found, valr)
-	}
-*/
-
-/*
-	func dt64Values(cr proto.ColResult) (vals []time.Time) {
-			mcs.Len += block.Rows
-			for _, col := range result {
-				fmt.Printf(">>> col type: %T\n", col)
-				switch col.Name {
-				case "ts":
-					mcs.Timestamps = append(mcs.Timestamps, dt64Values(col.Data)...)
-				case "severity_text":
-					mcs.SeverityTxts = append(mcs.SeverityTxts, enumValues(col.Data)...)
-				case "severity_number":
-					mcs.SeverityNums = append(mcs.SeverityNums, uint8Values(col.Data)...)
-				case "name":
-					mcs.Names = append(mcs.Names, strValues(col.Data)...)
-				case "body":
-					mcs.Bodies = append(mcs.Bodies, strValues(col.Data)...)
-				case "arr":
-					mcs.Tagses = append(mcs.Tagses, strArrayValues(col.Data)...)
-				}
-				col.Data.Reset()
-			}
-*/
-//}
-
-func (cols Cols) Input() (input proto.Input) {
-
-	input = proto.Input{}
-
-	for _, name := range cols.Names {
-		input = append(input, proto.InputColumn{
-			Name: name,
-			Data: cols.ByName[name],
-		})
-	}
-
-	return
-}
-
-func (cols Cols) Results() (results proto.Results) {
-
-	results = proto.Results{}
-
-	for _, name := range cols.Names {
-		results = append(results, proto.ResultColumn{
-			Name: name,
-			Data: cols.ByName[name],
-		})
-	}
-
-	return
-}
-
-// mcs.Timestamps = append(mcs.Timestamps, dt64Values(col.Data)...)
-// case "ts":
-// msgs.SetTimestamps(dt64Values(col.Data))
-// cols["ts"].(*proto.ColDateTime64).AppendArr(mcs.Timestamps[idx:end])
 // Todo: think about a col type
 //   - input() and result()
 //   - per proto coltype wax on/off ??
@@ -214,6 +118,7 @@ func columns() map[string]proto.Column {
 		"arr":             (&proto.ColStr{}).Array(),
 	}
 }
+*/
 
 //┌────────────────────────────ts─┬─severity_text─┬─severity_number─┬─body──┬─name─┬─arr─────────────────┐
 //│ 2010-01-01 10:22:33.000345678 │ INFO					│							 10 │ Hello │ name │ ['foo','bar','baz'] │
