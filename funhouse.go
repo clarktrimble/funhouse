@@ -3,12 +3,13 @@ package funhouse
 import (
 	"context"
 	"fmt"
-	"funhouse/table"
 	"io"
 	"time"
 
 	"github.com/ClickHouse/ch-go"
 	"github.com/ClickHouse/ch-go/proto"
+
+	"funhouse/table"
 )
 
 type FunHouse struct {
@@ -41,12 +42,12 @@ func (fh *FunHouse) UpsertTable(ctx context.Context, tbl table.Table) (err error
 
 type Appender interface {
 	AddLen(size int)
-	Append(name string, vals any)
+	Append(name string, vals any) (err error)
+	Validate() (err error)
 }
 
 func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, appr Appender) (err error) {
 
-	//results := results()
 	results := tbl.Cols.Results()
 
 	err = fh.Client.Do(ctx, ch.Query{
@@ -56,19 +57,27 @@ func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, appr Append
 		OnResult: func(ctx context.Context, block proto.Block) error {
 
 			appr.AddLen(block.Rows)
-			appendResults(results, appr)
-			return nil
+			err := appendResults(results, appr)
+			return err
 		},
 	})
+
+	err = appr.Validate()
 	return
 }
 
 type Chunker interface {
 	Chunk(name string, bgn, end int) (vals any)
 	Len() int
+	Validate() (err error)
 }
 
 func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunker) (err error) {
+
+	err = chkr.Validate()
+	if err != nil {
+		return
+	}
 
 	idx := 0
 	cols := tbl.Cols.ByName
@@ -82,7 +91,10 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunke
 			input.Reset()
 			end := min(idx+fh.ChunkSize, chkr.Len())
 
-			chunkInput(cols, chkr, idx, end)
+			err := chunkInput(cols, chkr, idx, end)
+			if err != nil {
+				return err
+			}
 			//return io.EOF
 
 			idx += fh.ChunkSize
@@ -101,93 +113,95 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunke
 
 // unexported
 
-// chaffer/dechaffer
-
-func appendResults(results proto.Results, appr Appender) {
+func appendResults(results proto.Results, appr Appender) (err error) {
 
 	for _, col := range results {
 
-		switch col.Data.(type) {
+		switch tc := col.Data.(type) {
 		case *proto.ColDateTime64:
-			appr.Append(col.Name, dt64Values(col.Data))
+			err = appr.Append(col.Name, dt64Values(tc))
 		case *proto.ColEnum:
-			appr.Append(col.Name, enumValues(col.Data))
+			err = appr.Append(col.Name, enumValues(tc))
 		case *proto.ColUInt8:
-			appr.Append(col.Name, uint8Values(col.Data))
+			err = appr.Append(col.Name, uint8Values(tc))
 		case *proto.ColStr:
-			appr.Append(col.Name, strValues(col.Data))
+			err = appr.Append(col.Name, strValues(tc))
 		case *proto.ColArr[string]:
-			appr.Append(col.Name, strArrayValues(col.Data))
+			err = appr.Append(col.Name, strArrayValues(tc))
 		default:
-			continue // Todo: wot?
+			err = fmt.Errorf("append type switch does not support: %#v\n", col)
 		}
+		if err != nil {
+			return
+		}
+
 		col.Data.Reset()
 	}
+
+	return
 }
 
-func chunkInput(cols map[string]proto.Column, chkr Chunker, bgn, end int) {
+func chunkInput(cols map[string]proto.Column, chkr Chunker, bgn, end int) (err error) {
+
+	ok := true
+	var tt []time.Time
+	var ts []string
+	var tu []uint8
+	var tz [][]string
 
 	for name, col := range cols {
 
-		// Todo: check for vals assertion fail
-		switch col.(type) {
+		switch tc := col.(type) {
 		case *proto.ColDateTime64:
-			vals := chkr.Chunk(name, bgn, end).([]time.Time)
-			col.(*proto.ColDateTime64).AppendArr(vals)
+			tt, ok = chkr.Chunk(name, bgn, end).([]time.Time)
+			tc.AppendArr(tt)
 		case *proto.ColEnum:
-			vals := chkr.Chunk(name, bgn, end).([]string)
-			col.(*proto.ColEnum).AppendArr(vals)
+			ts, ok = chkr.Chunk(name, bgn, end).([]string)
+			tc.AppendArr(ts)
 		case *proto.ColUInt8:
-			vals := chkr.Chunk(name, bgn, end).([]uint8)
-			col.(*proto.ColUInt8).AppendArr(vals)
+			tu, ok = chkr.Chunk(name, bgn, end).([]uint8)
+			tc.AppendArr(tu)
 		case *proto.ColStr:
-			vals := chkr.Chunk(name, bgn, end).([]string)
-			col.(*proto.ColStr).AppendArr(vals)
+			ts, ok = chkr.Chunk(name, bgn, end).([]string)
+			tc.AppendArr(ts)
 		case *proto.ColArr[string]:
-			vals := chkr.Chunk(name, bgn, end).([][]string)
-			col.(*proto.ColArr[string]).AppendArr(vals)
+			tz, ok = chkr.Chunk(name, bgn, end).([][]string)
+			tc.AppendArr(tz)
 		default:
-			continue // Todo: wot?
+			err = fmt.Errorf("chunk type switch does not support: %#v\n", col)
+		}
+		if !ok {
+			err = fmt.Errorf("chunk type switch failed for: %s %#v\n", name, col)
+		}
+		if err != nil {
+			return
 		}
 	}
+
+	return
 }
 
 // get values from different col types
 
-func strArrayValues(cr proto.ColResult) (vals [][]string) {
+func strArrayValues(ca *proto.ColArr[string]) (vals [][]string) {
 
-	vals = make([][]string, cr.Rows())
-
-	ca, ok := cr.(*proto.ColArr[string])
-	if !ok {
-		return
-		// Todo: handle maybe prescan?
-	}
+	vals = make([][]string, ca.Rows())
 
 	for i := 0; i < ca.Rows(); i++ {
 		vals[i] = ca.Row(i)
 	}
+
 	return
 }
 
-func uint8Values(cr proto.ColResult) (vals []uint8) {
-
-	ci, ok := cr.(*proto.ColUInt8)
-	if !ok {
-		return
-	}
+func uint8Values(ci *proto.ColUInt8) (vals []uint8) {
 
 	return *ci
 }
 
-func dt64Values(cr proto.ColResult) (vals []time.Time) {
+func dt64Values(cd *proto.ColDateTime64) (vals []time.Time) {
 
-	vals = make([]time.Time, cr.Rows())
-
-	cd, ok := cr.(*proto.ColDateTime64)
-	if !ok {
-		return
-	}
+	vals = make([]time.Time, cd.Rows())
 
 	for i := 0; i < cd.Rows(); i++ {
 		vals[i] = cd.Row(i)
@@ -196,33 +210,18 @@ func dt64Values(cr proto.ColResult) (vals []time.Time) {
 	return
 }
 
-func strValues(cr proto.ColResult) (vals []string) {
+func strValues(cs *proto.ColStr) (vals []string) {
 
-	vals = []string{}
+	vals = make([]string, cs.Rows())
 
-	cs, ok := cr.(*proto.ColStr)
-	if !ok {
-		return
-	}
-
-	err := cs.ForEach(func(i int, str string) error {
-		vals = append(vals, str)
-		return nil
-	})
-	if err != nil {
-		panic(err)
-		// Todo: handle
+	for i := 0; i < cs.Rows(); i++ {
+		vals[i] = cs.Row(i)
 	}
 
 	return
 }
 
-func enumValues(cr proto.ColResult) []string {
-
-	ce, ok := cr.(*proto.ColEnum)
-	if !ok {
-		return []string{}
-	}
+func enumValues(ce *proto.ColEnum) []string {
 
 	return ce.Values
 }

@@ -24,7 +24,7 @@ func main() {
 		panic(err)
 	}
 
-	//err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(44))
+	//err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
 	//if err != nil {
 	//panic(err)
 	//}
@@ -36,10 +36,8 @@ func main() {
 	}
 
 	//fmt.Printf(">>> mcs: %#v\n", mcs)
-	//fmt.Printf(">>> got %d msgs\n", mcs.Len)
+	//fmt.Printf(">>> got %d msgs\n", mcs.Len())
 	//return
-
-	// Todo: Len is bugged :/
 
 	msgs := make(entity.Msgs, mcs.Length)
 	for i := 0; i < mcs.Length; i++ {

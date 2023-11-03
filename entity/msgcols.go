@@ -29,8 +29,31 @@ func NewMsgCols(size int) *MsgCols {
 	}
 }
 
-// Todo: len check
+func (mcs *MsgCols) Validate() (err error) {
+
+	ts := len(mcs.Timestamps)
+	st := len(mcs.SeverityTxts)
+	sn := len(mcs.SeverityNums)
+	nm := len(mcs.Names)
+	bd := len(mcs.Bodies)
+	tg := len(mcs.Tagses)
+
+	if mcs.Length != ts ||
+		mcs.Length != st ||
+		mcs.Length != sn ||
+		mcs.Length != nm ||
+		mcs.Length != bd ||
+		mcs.Length != tg {
+		err = fmt.Errorf(
+			"invalid Length:%d ts:%d st:%d sn:%d nm:%d bd:%d tg:%d",
+			mcs.Length, ts, st, sn, nm, bd, tg,
+		)
+	}
+	return
+}
+
 func (mcs *MsgCols) Chunk(name string, bgn, end int) (vals any) {
+
 	switch name {
 	case "ts":
 		vals = mcs.Timestamps[bgn:end]
@@ -45,22 +68,21 @@ func (mcs *MsgCols) Chunk(name string, bgn, end int) (vals any) {
 	case "arr":
 		vals = mcs.Tagses[bgn:end]
 	default:
-		panic(fmt.Errorf("oops: no such name"))
+		vals = nil // noop but want to be obvious
 	}
 
 	return
 }
 
-// Todo: len check?
-// Todo: return err
-// Todo: use struct tags??
-func (mcs *MsgCols) Append(name string, vals any) {
+func (mcs *MsgCols) Append(name string, vals any) (err error) {
 
 	var ok bool
 	var tt []time.Time
 	var ts []string
 	var tu []uint8
 	var tz [][]string
+
+	// Todo: use struct tags??
 
 	switch name {
 	case "ts":
@@ -83,10 +105,10 @@ func (mcs *MsgCols) Append(name string, vals any) {
 		mcs.Tagses = append(mcs.Tagses, tz...)
 	}
 	if !ok {
-		// trust, but verify
-		err := fmt.Errorf("oops")
-		panic(err)
+		err = fmt.Errorf("append assertion failed for %s with vals %#v", name, vals)
 	}
+
+	return
 }
 
 func (mcs *MsgCols) Len() int {
