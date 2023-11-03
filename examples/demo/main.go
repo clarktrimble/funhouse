@@ -39,6 +39,8 @@ func main() {
 	//fmt.Printf(">>> got %d msgs\n", mcs.Len)
 	//return
 
+	// Todo: Len is bugged :/
+
 	msgs := make(entity.Msgs, mcs.Length)
 	for i := 0; i < mcs.Length; i++ {
 		msgs[i] = mcs.Row(i)

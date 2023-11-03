@@ -11,7 +11,8 @@ type Table struct {
 type Cols struct {
 	ByName map[string]proto.Column
 	Names  []string
-	// func (Input) Columns  -> returns "(foo, bar, baz)" formatted list of Input column names
+	// Todo: func (Input) Columns  -> returns "(foo, bar, baz)" formatted list of Input column names
+	//       is handy??
 }
 
 func (cols Cols) Input() (input proto.Input) {
