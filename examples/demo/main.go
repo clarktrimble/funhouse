@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"funhouse/entity"
 	"funhouse"
+	"funhouse/entity"
 )
 
 func main() {
@@ -21,20 +21,20 @@ func main() {
 		panic(err)
 	}
 
-	/*
-		err = fh.PutMsgColumns(ctx, entity.SampleMsgColumns(44))
-		if err != nil {
-			panic(err)
-		}
-	*/
+	//err = fh.PutColumns(ctx, entity.SampleMsgCols(44))
+	//if err != nil {
+	//panic(err)
+	//}
 
-	mcs, err := fh.GetMsgColumns(ctx)
+	mcs := &entity.MsgCols{}
+	err = fh.GetColumns(ctx, mcs)
 	if err != nil {
 		panic(err)
 	}
 
 	//fmt.Printf(">>> mcs: %#v\n", mcs)
-	//fmt.Printf(">>> got %d msgs\n", mcs.Len)
+	fmt.Printf(">>> got %d msgs\n", mcs.Len)
+	return
 
 	msgs := make(entity.Msgs, mcs.Len)
 	for i := 0; i < mcs.Len; i++ {

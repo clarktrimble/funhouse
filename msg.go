@@ -117,7 +117,56 @@ func names() []string {
 type Cols struct {
 	ByName map[string]proto.Column
 	Names  []string
+	// func (Input) Columns  -> returns "(foo, bar, baz)" formatted list of Input column names
 }
+
+//fmt.Printf(">>> col type: %T\n", col.Data)
+
+/*
+			cols["severity_text"].(*proto.ColEnum).AppendArr(mcs.SeverityTxts[idx:end])
+			cols["severity_number"].(*proto.ColUInt8).AppendArr(mcs.SeverityNums[idx:end])
+			cols["name"].(*proto.ColStr).AppendArr(mcs.Names[idx:end])
+			cols["body"].(*proto.ColStr).AppendArr(mcs.Bodies[idx:end])
+			cols["arr"].(*proto.ColArr[string]).AppendArr(mcs.Tagses[idx:end])
+	for _, col := range results {
+		found := ""
+		var valr Valuer
+
+		switch col.Data.(type) {
+		case *proto.ColDateTime64:
+			found = "*proto.ColDateTime64"
+			valr = dt64Values
+		default:
+			continue
+		}
+
+		fmt.Printf(">>> %s %s %s\n", col.Name, found, valr)
+	}
+*/
+
+/*
+	func dt64Values(cr proto.ColResult) (vals []time.Time) {
+			mcs.Len += block.Rows
+			for _, col := range result {
+				fmt.Printf(">>> col type: %T\n", col)
+				switch col.Name {
+				case "ts":
+					mcs.Timestamps = append(mcs.Timestamps, dt64Values(col.Data)...)
+				case "severity_text":
+					mcs.SeverityTxts = append(mcs.SeverityTxts, enumValues(col.Data)...)
+				case "severity_number":
+					mcs.SeverityNums = append(mcs.SeverityNums, uint8Values(col.Data)...)
+				case "name":
+					mcs.Names = append(mcs.Names, strValues(col.Data)...)
+				case "body":
+					mcs.Bodies = append(mcs.Bodies, strValues(col.Data)...)
+				case "arr":
+					mcs.Tagses = append(mcs.Tagses, strArrayValues(col.Data)...)
+				}
+				col.Data.Reset()
+			}
+*/
+//}
 
 func (cols Cols) Input() (input proto.Input) {
 
@@ -147,6 +196,10 @@ func (cols Cols) Results() (results proto.Results) {
 	return
 }
 
+// mcs.Timestamps = append(mcs.Timestamps, dt64Values(col.Data)...)
+// case "ts":
+// msgs.SetTimestamps(dt64Values(col.Data))
+// cols["ts"].(*proto.ColDateTime64).AppendArr(mcs.Timestamps[idx:end])
 // Todo: think about a col type
 //   - input() and result()
 //   - per proto coltype wax on/off ??
