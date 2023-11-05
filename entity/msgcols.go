@@ -1,19 +1,299 @@
 package entity
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
+	"reflect"
+	"strings"
 	"time"
 )
 
 type MsgCols struct {
 	Length       int
-	Timestamps   []time.Time
-	SeverityTxts []string
-	SeverityNums []uint8
-	Names        []string
-	Bodies       []string
-	Tagses       [][]string
+	Timestamps   []time.Time `col:"ts"`
+	SeverityTxts []string    `col:"severity_text"`
+	SeverityNums []uint8     `col:"severity_number"`
+	Names        []string    `col:"name"`
+	Bodies       []string    `col:"body"`
+	Tagses       [][]string  `col:"arr"`
+}
+
+var ErrInvalidSpecification = errors.New("specification must be a struct pointer")
+
+type ColSpec struct {
+	Name string
+	Tag  string
+}
+
+type ColSpecs []ColSpec
+
+func New(obj any) (specs ColSpecs, err error) {
+
+	s := reflect.ValueOf(obj)
+	if s.Kind() != reflect.Ptr {
+		err = ErrInvalidSpecification
+		return
+	}
+	s = s.Elem()
+	if s.Kind() != reflect.Struct {
+		err = ErrInvalidSpecification
+		return
+	}
+	typeOfSpec := s.Type()
+
+	for i := 0; i < s.NumField(); i++ {
+		f := s.Field(i)
+		ftype := typeOfSpec.Field(i)
+		if !f.CanSet() || ftype.Tag.Get("col") == "" {
+			continue
+		}
+
+		specs = append(specs, ColSpec{
+			Name: ftype.Name,
+			Tag:  ftype.Tag.Get("col"),
+		})
+	}
+
+	return
+}
+
+// switch name {
+// case "ts":
+// tt, ok = vals.([]time.Time)
+// mcs.Timestamps = append(mcs.Timestamps, tt...)
+// case "severity_text":
+// ts, ok = vals.([]string)
+// mcs.SeverityTxts = append(mcs.SeverityTxts, ts...)
+//func (mcs *MsgCols) Append(name string, vals any) (err error) {
+
+// func (mcs *MsgCols) Chunk(name string, bgn, end int) (vals any) {
+func (specs ColSpecs) ChunkToo(fieldName string, obj any, bgn, end int) (vals any) {
+
+	for _, cs := range specs {
+		if cs.Name != fieldName {
+			continue // Todo: lookup!
+		}
+
+		elem := reflect.ValueOf(obj).Elem()
+		val := elem.FieldByName("SeverityTxts")
+
+		fmt.Printf(">>> elem: %#v\n", elem)
+		fmt.Printf(">>> val: %#v\n", val)
+		fmt.Printf(">>> len: %#v\n", val.Len())
+
+		ve := reflect.ValueOf(obj).Elem()
+		fd := ve.FieldByName(fieldName)
+		fmt.Printf(">>> typeee: %#v\n", reflect.ValueOf(fd))
+		fmt.Printf(">>> typeee: %#v\n", fd.Type().String())
+		switch fd.Type().String() {
+		case "[]int":
+			fmt.Println("int here")
+		case "[]string":
+			fmt.Println("string here")
+		}
+
+		//fmt.Printf(">>> typeee: %#v\n", reflect.TypeOf(obj).Elem())
+		//return ve.FieldByName(fieldName)
+		return ve.FieldByName(fieldName).Slice(bgn, end).Interface()
+	}
+	/*
+		switch name {
+		case "ts":
+			vals = mcs.Timestamps[bgn:end]
+		case "severity_text":
+			vals = mcs.SeverityTxts[bgn:end]
+		case "severity_number":
+			vals = mcs.SeverityNums[bgn:end]
+		case "name":
+			vals = mcs.Names[bgn:end]
+		case "body":
+			vals = mcs.Bodies[bgn:end]
+		case "arr":
+			vals = mcs.Tagses[bgn:end]
+			default: // Todo: keep???
+			vals = nil // noop but want to be obvious
+		}
+	*/
+
+	return
+}
+
+func (specs ColSpecs) AppendToo(colName string, vals any, obj any) (err error) {
+
+	// Todo: wring hands about vals type
+
+	ve := reflect.ValueOf(obj).Elem()
+
+	for _, cs := range specs {
+		if cs.Tag != colName {
+			continue // Todo: lookup!
+		}
+
+		field := ve.FieldByName(cs.Name)
+		//fmt.Printf(">>> field: %#v\n", field)
+
+		// Todo: fo loop blah
+		vov := reflect.ValueOf(vals)
+		//fmt.Sprintf(">>> vvo: %#v\n", reflect.ValueOf(vov))
+		//fmt.Printf(">>>vovk: %#v\n", vov.Kind() == reflect.Slice)
+		//fmt.Printf(">>> field: %#v\n", field)
+
+		if vov.Kind() != reflect.Slice {
+			err = fmt.Errorf("cannot append non-slice: %#v", vals)
+			return
+		}
+
+		//value.Set(reflect.Append(value, reflect.ValueOf(55)))
+		//field.Set(reflect.AppendSlice(field, reflect.ValueOf([]string{"DEBARG", "INFRA"})))
+		//field.Set(reflect.AppendSlice(field, reflect.ValueOf(vals)))
+		field.Set(reflect.AppendSlice(field, vov))
+
+		//fmt.Printf(">>> field: %#v\n", field)
+		//fmt.Printf(">>> obj: %#v\n", obj)
+	}
+
+	return
+}
+
+func (specs ColSpecs) ValidateToo(ln int, obj any) (err error) {
+
+	// Todo: check for obj suitable and that fields are slice
+	//       maybe store name of struct from harvesting of fields?
+
+	errTxt := []string{}
+	ve := reflect.ValueOf(obj).Elem()
+
+	for _, cs := range specs {
+		fln := ve.FieldByName(cs.Name).Len()
+		if ln != fln {
+			errTxt = append(errTxt, fmt.Sprintf("%s has len %d expected %d", cs.Name, fln, ln))
+		}
+	}
+
+	if len(errTxt) != 0 {
+		err = fmt.Errorf("validation failed: %s", strings.Join(errTxt, ","))
+	}
+
+	return
+}
+
+func ReflectoToo(spec any) (err error) {
+
+	s := reflect.ValueOf(spec)
+
+	if s.Kind() != reflect.Ptr {
+		return ErrInvalidSpecification
+	}
+	s = s.Elem()
+	if s.Kind() != reflect.Struct {
+		return ErrInvalidSpecification
+	}
+	typeOfSpec := s.Type()
+
+	//fmt.Printf(">>> tos: %#v\n", typeOfSpec)
+
+	for i := 0; i < s.NumField(); i++ {
+		f := s.Field(i)
+		//val? fmt.Printf(">>> field: %#v\n", f)
+		ftype := typeOfSpec.Field(i)
+		//if !f.CanSet() || isTrue(ftype.Tag.Get("ignored")) {
+		if !f.CanSet() || ftype.Tag.Get("col") == "" {
+			continue
+		}
+
+		// not crystal clear on what this section's about ..
+		/*
+			for f.Kind() == reflect.Ptr {
+				if f.IsNil() {
+					if f.Type().Elem().Kind() != reflect.Struct {
+						// nil pointer to a non-struct: leave it alone
+						break
+					}
+					// nil pointer to struct: create a zero instance
+					f.Set(reflect.New(f.Type().Elem()))
+				}
+				f = f.Elem()
+			}
+		*/
+
+		val := s.FieldByName(ftype.Name)
+		fmt.Printf(">>> name: %s tag: %s len: %d\n", ftype.Name, ftype.Tag.Get("col"), val.Len())
+
+		//elem := reflect.ValueOf(msgs).Elem()
+		//val := elem.FieldByName(cf.Name)
+		//fmt.Printf(">>> len: %#v\n", val.Len())
+
+		// Capture information about the config variable
+		/*
+			info := varInfo{
+				Name:  ftype.Name,
+				Field: f,
+				Tags:  ftype.Tag,
+				Alt:   strings.ToUpper(ftype.Tag.Get("envconfig")),
+			}
+		*/
+	}
+
+	return
+}
+func Reflecto(msgs *MsgCols) (err error) {
+	//func Reflecto(msgs any) (err error) {
+
+	// reflect.ValueOf(&n).Elem().FieldByName("N").SetInt(7)
+
+	//stuff := reflect.ValueOf(msgs).Elem().FieldByName("Timestamps").Len()
+	//fmt.Printf(">>> stuff: %#v\n\n", stuff)
+
+	// Todo: wring hands about pointer
+	tp := reflect.TypeOf(*msgs)
+
+	//fmt.Printf(">>> %#v\n", tp)
+
+	cfs := []reflect.StructField{}
+	for i := 0; i < tp.NumField(); i++ {
+
+		cf := tp.Field(i)
+		_, ok := cf.Tag.Lookup("col")
+		if ok {
+			// Todo: save tag val, map or struct
+			// Todo: check tag is not blank
+			cfs = append(cfs, cf)
+		}
+	}
+
+	for _, cf := range cfs {
+		fmt.Printf(">>> \n\n cf: %#v\n", cf)
+		//fmt.Printf(">>> vo cf: %#v\n", reflect.ValueOf(cf))
+		fmt.Printf(">>> name: %s tag: %s\n", cf.Name, cf.Tag.Get("col"))
+
+		elem := reflect.ValueOf(msgs).Elem()
+		val := elem.FieldByName(cf.Name)
+
+		fmt.Printf(">>> elem: %#v\n", elem)
+		fmt.Printf(">>> val: %#v\n", val)
+		fmt.Printf(">>> len: %#v\n", val.Len())
+
+		//gVal := reflect.ValueOf(cf)
+		// not a pointer so all we can do is read it
+		//fmt.Println(gVal.Interface())
+	}
+
+	/*
+			field := tp.Field(i)
+			if alias, ok := field.Tag.Lookup("col"); ok {
+				if alias == "" {
+					fmt.Println("(blank)")
+				} else {
+					fmt.Println(alias)
+				}
+			} else {
+				fmt.Println("(not specified)")
+			}
+		}
+	*/
+
+	return
 }
 
 func NewMsgCols(size int) *MsgCols {
@@ -122,8 +402,6 @@ func (mcs *MsgCols) AddLen(size int) {
 }
 
 func (mcs *MsgCols) Row(idx int) Msg {
-
-	// Todo: validate that cols are same len and cover idx
 
 	return Msg{
 		Timestamp: mcs.Timestamps[idx],
