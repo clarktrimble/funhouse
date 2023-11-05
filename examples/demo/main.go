@@ -5,20 +5,15 @@ import (
 	"fmt"
 
 	"funhouse"
-	"funhouse/colspec"
 	"funhouse/entity"
 	"funhouse/msgtable"
 )
 
 func main() {
 
-	// messages columns object, struct specification, and table
+	// create message columns and table objects
 
 	mcs := &entity.MsgCols{}
-
-	specs, err := colspec.New(mcs)
-	check(err)
-
 	msgTable := msgtable.MsgTable()
 
 	// connect with db and create table if needed
@@ -32,10 +27,10 @@ func main() {
 
 	// insert some messages and get them back
 
-	//err = fh.PutColumns(ctx, msgTable, specs, entity.SampleMsgCols(30))
-	//check(err)
+	err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
+	check(err)
 
-	err = fh.GetColumns(ctx, msgTable, specs, mcs)
+	err = fh.GetColumns(ctx, msgTable, mcs)
 	check(err)
 
 	//fmt.Printf(">>> mcs: %#v\n", mcs)

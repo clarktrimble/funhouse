@@ -1,11 +1,16 @@
 package table
 
-import "github.com/ClickHouse/ch-go/proto"
+import (
+	"funhouse/colspec"
+
+	"github.com/ClickHouse/ch-go/proto"
+)
 
 type Table struct {
-	Name string
-	Ddl  string
-	Cols Cols
+	Name  string
+	Ddl   string
+	Cols  Cols
+	Specs colspec.ColSpecs
 }
 
 type Cols struct {
@@ -13,6 +18,7 @@ type Cols struct {
 	Names  []string
 	// Todo: func (Input) Columns  -> returns "(foo, bar, baz)" formatted list of Input column names
 	//       is handy??
+	// yeah, no, maybe just a slice of columns and get names from there?
 }
 
 func (cols Cols) Input() (input proto.Input) {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/ClickHouse/ch-go/proto"
 
+	"funhouse/colspec"
 	"funhouse/table"
 )
 
@@ -37,6 +38,14 @@ func MsgTable() table.Table {
 				"name",
 				"arr",
 			},
+		},
+		Specs: colspec.ColSpecs{
+			"ts":              "Timestamps",
+			"severity_text":   "SeverityTxts",
+			"severity_number": "SeverityNums",
+			"name":            "Names",
+			"body":            "Bodies",
+			"arr":             "Tagses",
 		},
 	}
 }
