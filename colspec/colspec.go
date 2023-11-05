@@ -7,30 +7,27 @@ import (
 	"strings"
 )
 
-// Todo: spruce up
-var ErrInvalidSpecification = errors.New("specification must be a struct pointer")
-
-// ColSpec relates a structure's field name to it's column name.
-type ColSpec struct {
-	FldName string
-	ColName string
-}
+var (
+	ErrInvalidSpec = errors.New(`spec must be a struct pointer with "col" slice fields`)
+)
 
 // ColSpecs tracks column fields in a structure.
-type ColSpecs []ColSpec
+type ColSpecs map[string]string
 
 // New create ColSpecs for a given object.
 // Slice fields with a "col" tag are picked up.
 func New(obj any) (specs ColSpecs, err error) {
 
+	specs = ColSpecs{}
+
 	s := reflect.ValueOf(obj)
 	if s.Kind() != reflect.Ptr {
-		err = ErrInvalidSpecification
+		err = ErrInvalidSpec
 		return
 	}
 	s = s.Elem()
 	if s.Kind() != reflect.Struct {
-		err = ErrInvalidSpecification
+		err = ErrInvalidSpec
 		return
 	}
 	typeOfSpec := s.Type()
@@ -42,17 +39,14 @@ func New(obj any) (specs ColSpecs, err error) {
 			continue
 		}
 
-		specs = append(specs, ColSpec{
-			FldName: ftype.Name,
-			ColName: ftype.Tag.Get("col"),
-		})
+		specs[ftype.Tag.Get("col")] = ftype.Name
 	}
 
 	return
 }
 
 // ValidateCols checks that all "col" fields are of a given length.
-func (specs ColSpecs) ValidateCols(ln int, obj any) (err error) {
+func (specs ColSpecs) ValidateCols(glen int, obj any) (err error) {
 
 	// Todo: check for obj suitable and that fields are slice
 	//       maybe store name of struct from harvesting of fields?
@@ -60,10 +54,11 @@ func (specs ColSpecs) ValidateCols(ln int, obj any) (err error) {
 	errTxt := []string{}
 	ve := reflect.ValueOf(obj).Elem()
 
-	for _, cs := range specs {
-		fln := ve.FieldByName(cs.FldName).Len()
-		if ln != fln {
-			errTxt = append(errTxt, fmt.Sprintf("%s has len %d expected %d", cs.FldName, fln, ln))
+	for _, fldName := range specs {
+
+		flen := ve.FieldByName(fldName).Len()
+		if glen != flen {
+			errTxt = append(errTxt, fmt.Sprintf("%s has len %d expected %d", fldName, flen, glen))
 		}
 	}
 
@@ -77,16 +72,13 @@ func (specs ColSpecs) ValidateCols(ln int, obj any) (err error) {
 // Chunk gets a range of values for the given column name.
 func (specs ColSpecs) Chunk(colName string, obj any, bgn, end int) (vals any) {
 
-	fieldName := ""
-	for _, cs := range specs {
-		if cs.ColName != colName {
-			continue // Todo: lookup! loop here is blah
-		}
-		fieldName = cs.FldName
+	fldName, ok := specs[colName]
+	if !ok {
+		return
 	}
 
 	voe := reflect.ValueOf(obj).Elem()
-	return voe.FieldByName(fieldName).Slice(bgn, end).Interface()
+	return voe.FieldByName(fldName).Slice(bgn, end).Interface()
 }
 
 // Append adds values to obj's field corresponding to the given column name.
@@ -96,22 +88,19 @@ func (specs ColSpecs) Append(colName string, vals any, obj any) (err error) {
 
 	ve := reflect.ValueOf(obj).Elem()
 
-	for _, cs := range specs {
-		if cs.ColName != colName {
-			continue // Todo: lookup! loop here is blah
-		}
+	fldName, ok := specs[colName]
+	if !ok {
+		return fmt.Errorf("unkown column name: %s", colName)
+	}
+	field := ve.FieldByName(fldName)
 
-		field := ve.FieldByName(cs.FldName)
-
-		// getting real trouble wo this check, maybe even a bug in reflect
-		vov := reflect.ValueOf(vals)
-		if vov.Kind() != reflect.Slice {
-			err = fmt.Errorf("cannot append non-slice: %#v", vals)
-			return
-		}
-
-		field.Set(reflect.AppendSlice(field, vov))
+	// getting real trouble wo this check, maybe even a bug in reflect
+	vov := reflect.ValueOf(vals)
+	if vov.Kind() != reflect.Slice {
+		err = fmt.Errorf("cannot append non-slice: %#v", vals)
+		return
 	}
 
+	field.Set(reflect.AppendSlice(field, vov))
 	return
 }

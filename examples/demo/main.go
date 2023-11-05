@@ -32,8 +32,8 @@ func main() {
 
 	// insert some messages and get them back
 
-	err = fh.PutColumns(ctx, msgTable, specs, entity.SampleMsgCols(30))
-	check(err)
+	//err = fh.PutColumns(ctx, msgTable, specs, entity.SampleMsgCols(30))
+	//check(err)
 
 	err = fh.GetColumns(ctx, msgTable, specs, mcs)
 	check(err)

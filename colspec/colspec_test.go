@@ -21,29 +21,43 @@ var _ = Describe("ColSpec", func() {
 		msgs  *entity.MsgCols
 		err   error
 	)
-	// Todo: pull more stuff up here yeah?
+	BeforeEach(func() {
+		specs = ColSpecs{
+			"ts":              "Timestamps",
+			"severity_text":   "SeverityTxts",
+			"severity_number": "SeverityNums",
+			"name":            "Names",
+			"body":            "Bodies",
+			"arr":             "Tagses",
+		}
+		msgs = entity.SampleMsgCols(3)
+	})
 
-	Describe("exploring colspecs", func() {
+	Describe("creating colspecs from a struct", func() {
+		var (
+			newSpecs ColSpecs
+		)
 
 		JustBeforeEach(func() {
-			specs, err = New(msgs)
+			newSpecs, err = New(msgs)
 		})
 
 		When("all is well", func() {
-			BeforeEach(func() {
-				msgs = entity.SampleMsgCols(3) // Todo: can haz uninit struct?
-			})
+			//BeforeEach(func() {
+			//msgs = entity.SampleMsgCols(3) // Todo: can haz uninit struct?
+			//})
 
 			It("says the nicest things", func() {
 				Expect(err).ToNot(HaveOccurred())
-				Expect(specs).To(ConsistOf(ColSpecs{
-					{FldName: "Timestamps", ColName: "ts"},
-					{FldName: "SeverityTxts", ColName: "severity_text"},
-					{FldName: "SeverityNums", ColName: "severity_number"},
-					{FldName: "Names", ColName: "name"},
-					{FldName: "Bodies", ColName: "body"},
-					{FldName: "Tagses", ColName: "arr"},
-				}))
+				Expect(newSpecs).To(Equal(specs))
+				//ColSpecs{
+				//"ts":              "Timestamps",
+				//"severity_text":   "SeverityTxts",
+				//"severity_number": "SeverityNums",
+				//"name":            "Names",
+				//"body":            "Bodies",
+				//"arr":             "Tagses",
+				//}))
 			})
 		})
 	})
@@ -55,15 +69,6 @@ var _ = Describe("ColSpec", func() {
 		})
 
 		When("all is well", func() {
-			BeforeEach(func() {
-				specs = ColSpecs{
-					{"Timestamps", "ts"},
-					{"SeverityTxts", "severity_text"},
-					{FldName: "Tagses", ColName: "arr"},
-				}
-				msgs = entity.SampleMsgCols(3)
-			})
-
 			It("does not error", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
@@ -81,9 +86,6 @@ var _ = Describe("ColSpec", func() {
 
 		When("all is well", func() {
 			BeforeEach(func() {
-				specs = ColSpecs{
-					{"SeverityTxts", "severity_text"},
-				}
 				msgs = entity.SampleMsgCols(9)
 			})
 
@@ -102,15 +104,6 @@ var _ = Describe("ColSpec", func() {
 		})
 
 		When("all is well", func() {
-			BeforeEach(func() {
-				specs = ColSpecs{
-					{"Timestamps", "ts"},
-					{"SeverityTxts", "severity_text"},
-					{"Tagses", "arr"},
-				}
-				msgs = entity.SampleMsgCols(3)
-			})
-
 			It("appends the slice", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(msgs.Tagses).To(Equal([][]string{
