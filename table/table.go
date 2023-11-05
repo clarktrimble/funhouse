@@ -1,48 +1,46 @@
 package table
 
 import (
-	"funhouse/colspec"
-
 	"github.com/ClickHouse/ch-go/proto"
+
+	"funhouse/colspec"
 )
 
 type Table struct {
 	Name  string
 	Ddl   string
-	Cols  Cols
+	Cols  []Col
 	Specs colspec.ColSpecs
 }
 
-type Cols struct {
-	ByName map[string]proto.Column
-	Names  []string
-	// Todo: func (Input) Columns  -> returns "(foo, bar, baz)" formatted list of Input column names
-	//       is handy??
-	// yeah, no, maybe just a slice of columns and get names from there?
+type Col struct {
+	Name string
+	Data proto.Column
 }
 
-func (cols Cols) Input() (input proto.Input) {
+func (tbl Table) Input() (input proto.Input) {
 
 	input = proto.Input{}
 
-	for _, name := range cols.Names {
+	for _, col := range tbl.Cols {
 		input = append(input, proto.InputColumn{
-			Name: name,
-			Data: cols.ByName[name],
+			Name: col.Name,
+			Data: col.Data,
 		})
 	}
 
 	return
 }
 
-func (cols Cols) Results() (results proto.Results) {
+func (tbl Table) Results() (results proto.Results) {
 
 	results = proto.Results{}
 
-	for _, name := range cols.Names {
+	for _, col := range tbl.Cols {
+
 		results = append(results, proto.ResultColumn{
-			Name: name,
-			Data: cols.ByName[name],
+			Name: col.Name,
+			Data: col.Data,
 		})
 	}
 

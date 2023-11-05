@@ -52,10 +52,9 @@ type Lengther interface {
 }
 
 // GetColumns reads blocks from a table.
-// func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, specs colspec.ColSpecs, lngr Lengther) (err error) {
 func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, lngr Lengther) (err error) {
 
-	results := tbl.Cols.Results()
+	results := tbl.Results()
 
 	err = fh.Client.Do(ctx, ch.Query{
 		// Todo: accept query from beyond
@@ -78,7 +77,6 @@ func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, lngr Length
 }
 
 // PutColumns inserts chunks into a table.
-// func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, specs colspec.ColSpecs, lngr Lengther) (err error) {
 func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, lngr Lengther) (err error) {
 
 	err = tbl.Specs.ValidateCols(lngr.Len(), lngr)
@@ -87,8 +85,7 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, lngr Length
 	}
 
 	idx := 0
-	//cols := tbl.Cols.ByName // Todo: no loc??
-	input := tbl.Cols.Input()
+	input := tbl.Input()
 
 	err = fh.Client.Do(ctx, ch.Query{
 		Body:  input.Into(tbl.Name),
@@ -98,8 +95,7 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, lngr Length
 			input.Reset()
 			end := min(idx+fh.ChunkSize, lngr.Len())
 
-			//err := chunkInput(cols, tbl.Specs, lngr, idx, end)
-			err := chunkInputToo(input, tbl.Specs, lngr, idx, end)
+			err := chunkInput(input, tbl.Specs, lngr, idx, end)
 			if err != nil {
 				return err
 			}
@@ -149,8 +145,7 @@ func appendResults(results proto.Results, specs colspec.ColSpecs, lngr Lengther)
 	return
 }
 
-func chunkInputToo(cols proto.Input, specs colspec.ColSpecs, lngr Lengther, bgn, end int) (err error) {
-	// Todo: or cols Input ?
+func chunkInput(cols proto.Input, specs colspec.ColSpecs, lngr Lengther, bgn, end int) (err error) {
 
 	ok := true
 	var tt []time.Time
@@ -158,11 +153,11 @@ func chunkInputToo(cols proto.Input, specs colspec.ColSpecs, lngr Lengther, bgn,
 	var tu []uint8
 	var tz [][]string
 
-	//for name, col := range cols {
 	for i := range cols {
 
 		switch tc := cols[i].Data.(type) {
 		case *proto.ColDateTime64:
+
 			tt, ok = specs.Chunk(cols[i].Name, lngr, bgn, end).([]time.Time)
 			tc.AppendArr(tt)
 		case *proto.ColEnum:
@@ -182,45 +177,6 @@ func chunkInputToo(cols proto.Input, specs colspec.ColSpecs, lngr Lengther, bgn,
 		}
 		if !ok {
 			err = fmt.Errorf("chunk type assertion failed for: %s %#v\n", cols[i].Name, cols[i])
-		}
-		if err != nil {
-			return
-		}
-	}
-
-	return
-}
-func chunkInput(cols map[string]proto.Column, specs colspec.ColSpecs, lngr Lengther, bgn, end int) (err error) {
-
-	ok := true
-	var tt []time.Time
-	var ts []string
-	var tu []uint8
-	var tz [][]string
-
-	for name, col := range cols {
-
-		switch tc := col.(type) {
-		case *proto.ColDateTime64:
-			tt, ok = specs.Chunk(name, lngr, bgn, end).([]time.Time)
-			tc.AppendArr(tt)
-		case *proto.ColEnum:
-			ts, ok = specs.Chunk(name, lngr, bgn, end).([]string)
-			tc.AppendArr(ts)
-		case *proto.ColUInt8:
-			tu, ok = specs.Chunk(name, lngr, bgn, end).([]uint8)
-			tc.AppendArr(tu)
-		case *proto.ColStr:
-			ts, ok = specs.Chunk(name, lngr, bgn, end).([]string)
-			tc.AppendArr(ts)
-		case *proto.ColArr[string]:
-			tz, ok = specs.Chunk(name, lngr, bgn, end).([][]string)
-			tc.AppendArr(tz)
-		default:
-			err = fmt.Errorf("chunk type switch does not support: %#v\n", col)
-		}
-		if !ok {
-			err = fmt.Errorf("chunk type assertion failed for: %s %#v\n", name, col)
 		}
 		if err != nil {
 			return
