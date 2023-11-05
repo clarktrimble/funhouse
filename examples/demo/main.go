@@ -11,33 +11,33 @@ import (
 
 func main() {
 
-	ctx := context.Background()
-	msgTable := msgtable.MsgTable()
-
-	fh, err := funhouse.New(ctx, "localhost:9000", 9)
-	if err != nil {
-		panic(err)
-	}
-
-	err = fh.UpsertTable(ctx, msgTable)
-	if err != nil {
-		panic(err)
-	}
-
-	//err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
-	//if err != nil {
-	//panic(err)
-	//}
+	// create message columns and table objects
 
 	mcs := &entity.MsgCols{}
+	msgTable := msgtable.MsgTable()
+
+	// connect with db and create table if needed
+
+	ctx := context.Background()
+	fh, err := funhouse.New(ctx, "localhost:9000", 9)
+	check(err)
+
+	err = fh.UpsertTable(ctx, msgTable)
+	check(err)
+
+	// insert some messages and get them back
+
+	//err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
+	//check(err)
+
 	err = fh.GetColumns(ctx, msgTable, mcs)
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 
 	//fmt.Printf(">>> mcs: %#v\n", mcs)
 	//fmt.Printf(">>> got %d msgs\n", mcs.Len())
 	//return
+
+	// convert to non-column messages and print
 
 	msgs := make(entity.Msgs, mcs.Length)
 	for i := 0; i < mcs.Length; i++ {
@@ -45,4 +45,11 @@ func main() {
 	}
 
 	fmt.Printf("%s", msgs)
+}
+
+// handle top-level errors
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

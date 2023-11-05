@@ -6,16 +6,18 @@ import (
 	"time"
 )
 
+// MsgCols is a column-oriented take on messages.
 type MsgCols struct {
 	Length       int
-	Timestamps   []time.Time
-	SeverityTxts []string
-	SeverityNums []uint8
-	Names        []string
-	Bodies       []string
-	Tagses       [][]string
+	Timestamps   []time.Time `col:"ts"`
+	SeverityTxts []string    `col:"severity_text"`
+	SeverityNums []uint8     `col:"severity_number"`
+	Names        []string    `col:"name"`
+	Bodies       []string    `col:"body"`
+	Tagses       [][]string  `col:"arr"`
 }
 
+// NewMsgCols creates MsgCols, initialized to a given size.
 func NewMsgCols(size int) *MsgCols {
 
 	return &MsgCols{
@@ -29,101 +31,20 @@ func NewMsgCols(size int) *MsgCols {
 	}
 }
 
-func (mcs *MsgCols) Validate() (err error) {
-
-	ts := len(mcs.Timestamps)
-	st := len(mcs.SeverityTxts)
-	sn := len(mcs.SeverityNums)
-	nm := len(mcs.Names)
-	bd := len(mcs.Bodies)
-	tg := len(mcs.Tagses)
-
-	if mcs.Length != ts ||
-		mcs.Length != st ||
-		mcs.Length != sn ||
-		mcs.Length != nm ||
-		mcs.Length != bd ||
-		mcs.Length != tg {
-		err = fmt.Errorf(
-			"invalid Length:%d ts:%d st:%d sn:%d nm:%d bd:%d tg:%d",
-			mcs.Length, ts, st, sn, nm, bd, tg,
-		)
-	}
-	return
-}
-
-func (mcs *MsgCols) Chunk(name string, bgn, end int) (vals any) {
-
-	switch name {
-	case "ts":
-		vals = mcs.Timestamps[bgn:end]
-	case "severity_text":
-		vals = mcs.SeverityTxts[bgn:end]
-	case "severity_number":
-		vals = mcs.SeverityNums[bgn:end]
-	case "name":
-		vals = mcs.Names[bgn:end]
-	case "body":
-		vals = mcs.Bodies[bgn:end]
-	case "arr":
-		vals = mcs.Tagses[bgn:end]
-	default:
-		vals = nil // noop but want to be obvious
-	}
-
-	return
-}
-
-func (mcs *MsgCols) Append(name string, vals any) (err error) {
-
-	var ok bool
-	var tt []time.Time
-	var ts []string
-	var tu []uint8
-	var tz [][]string
-
-	// Todo: use struct tags??
-
-	switch name {
-	case "ts":
-		tt, ok = vals.([]time.Time)
-		mcs.Timestamps = append(mcs.Timestamps, tt...)
-	case "severity_text":
-		ts, ok = vals.([]string)
-		mcs.SeverityTxts = append(mcs.SeverityTxts, ts...)
-	case "severity_number":
-		tu, ok = vals.([]uint8)
-		mcs.SeverityNums = append(mcs.SeverityNums, tu...)
-	case "name":
-		ts, ok = vals.([]string)
-		mcs.Names = append(mcs.Names, ts...)
-	case "body":
-		ts, ok = vals.([]string)
-		mcs.Bodies = append(mcs.Bodies, ts...)
-	case "arr":
-		tz, ok = vals.([][]string)
-		mcs.Tagses = append(mcs.Tagses, tz...)
-	}
-	if !ok {
-		err = fmt.Errorf("append assertion failed for %s with vals %#v", name, vals)
-	}
-
-	return
-}
-
+// Len returns the column lengths.
 func (mcs *MsgCols) Len() int {
 
 	return mcs.Length
 }
 
+// AddLen adds to the column lengths.
 func (mcs *MsgCols) AddLen(size int) {
 
 	mcs.Length += size
 }
 
+// Row creates a Mesg for a given row.
 func (mcs *MsgCols) Row(idx int) Msg {
-
-	// Todo: validate that cols are same len and cover idx
 
 	return Msg{
 		Timestamp: mcs.Timestamps[idx],
@@ -137,6 +58,7 @@ func (mcs *MsgCols) Row(idx int) Msg {
 	}
 }
 
+// SampleMsgCols creates an example of MsgCols.
 func SampleMsgCols(count int) (mcs *MsgCols) {
 
 	mcs = NewMsgCols(count)

@@ -9,14 +9,17 @@ import (
 	"github.com/ClickHouse/ch-go"
 	"github.com/ClickHouse/ch-go/proto"
 
+	"funhouse/colspec"
 	"funhouse/table"
 )
 
+// FunHouse is a column-oriented low-ish level clickhouse client.
 type FunHouse struct {
 	Client    *ch.Client
 	ChunkSize int
 }
 
+// New creates a Funhouse and connects to clickhouse.
 func New(ctx context.Context, url string, chunkSize int) (fh *FunHouse, err error) {
 
 	client, err := ch.Dial(ctx, ch.Options{Address: url})
@@ -32,6 +35,7 @@ func New(ctx context.Context, url string, chunkSize int) (fh *FunHouse, err erro
 	return
 }
 
+// UpsertTables creates a table if it does not exist.
 func (fh *FunHouse) UpsertTable(ctx context.Context, tbl table.Table) (err error) {
 
 	err = fh.Client.Do(ctx, ch.Query{
@@ -40,48 +44,48 @@ func (fh *FunHouse) UpsertTable(ctx context.Context, tbl table.Table) (err error
 	return
 }
 
-type Appender interface {
+// Lengther specifies getting and adding a length attribute for validation of block operations.
+// In practice, it will be the object we're appending or chunking to/from as well.
+type Lengther interface {
 	AddLen(size int)
-	Append(name string, vals any) (err error)
-	Validate() (err error)
+	Len() int
 }
 
-func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, appr Appender) (err error) {
+// GetColumns reads blocks from a table.
+func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, lngr Lengther) (err error) {
 
-	results := tbl.Cols.Results()
+	results := tbl.Results()
 
 	err = fh.Client.Do(ctx, ch.Query{
-		//Body:   fmt.Sprintf("select * from %s limit 5", MsgTable),
+		// Todo: accept query from beyond
+		// Body:   fmt.Sprintf("select * from %s limit 5", MsgTable),
 		Body:   fmt.Sprintf("select * from %s", tbl.Name),
 		Result: results,
 		OnResult: func(ctx context.Context, block proto.Block) error {
 
-			appr.AddLen(block.Rows)
-			err := appendResults(results, appr)
+			lngr.AddLen(block.Rows)
+			err := appendResults(results, tbl.Specs, lngr)
 			return err
 		},
 	})
+	if err != nil {
+		return
+	}
 
-	err = appr.Validate()
+	err = tbl.Specs.ValidateCols(lngr.Len(), lngr)
 	return
 }
 
-type Chunker interface {
-	Chunk(name string, bgn, end int) (vals any)
-	Len() int
-	Validate() (err error)
-}
+// PutColumns inserts chunks into a table.
+func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, lngr Lengther) (err error) {
 
-func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunker) (err error) {
-
-	err = chkr.Validate()
+	err = tbl.Specs.ValidateCols(lngr.Len(), lngr)
 	if err != nil {
 		return
 	}
 
 	idx := 0
-	cols := tbl.Cols.ByName
-	input := tbl.Cols.Input()
+	input := tbl.Input()
 
 	err = fh.Client.Do(ctx, ch.Query{
 		Body:  input.Into(tbl.Name),
@@ -89,16 +93,16 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunke
 		OnInput: func(ctx context.Context) error {
 
 			input.Reset()
-			end := min(idx+fh.ChunkSize, chkr.Len())
+			end := min(idx+fh.ChunkSize, lngr.Len())
 
-			err := chunkInput(cols, chkr, idx, end)
+			err := chunkInput(input, tbl.Specs, lngr, idx, end)
 			if err != nil {
 				return err
 			}
 			//return io.EOF
 
 			idx += fh.ChunkSize
-			if idx > chkr.Len() {
+			if idx > lngr.Len() {
 				return io.EOF
 			}
 			// Todo: maybe this fails if chunk size is larger than mcs len on first go?
@@ -113,21 +117,21 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunke
 
 // unexported
 
-func appendResults(results proto.Results, appr Appender) (err error) {
+func appendResults(results proto.Results, specs colspec.ColSpecs, lngr Lengther) (err error) {
 
 	for _, col := range results {
 
 		switch tc := col.Data.(type) {
 		case *proto.ColDateTime64:
-			err = appr.Append(col.Name, dt64Values(tc))
+			err = specs.Append(col.Name, dt64Values(tc), lngr)
 		case *proto.ColEnum:
-			err = appr.Append(col.Name, enumValues(tc))
+			err = specs.Append(col.Name, enumValues(tc), lngr)
 		case *proto.ColUInt8:
-			err = appr.Append(col.Name, uint8Values(tc))
+			err = specs.Append(col.Name, uint8Values(tc), lngr)
 		case *proto.ColStr:
-			err = appr.Append(col.Name, strValues(tc))
+			err = specs.Append(col.Name, strValues(tc), lngr)
 		case *proto.ColArr[string]:
-			err = appr.Append(col.Name, strArrayValues(tc))
+			err = specs.Append(col.Name, strArrayValues(tc), lngr)
 		default:
 			err = fmt.Errorf("append type switch does not support: %#v\n", col)
 		}
@@ -141,7 +145,7 @@ func appendResults(results proto.Results, appr Appender) (err error) {
 	return
 }
 
-func chunkInput(cols map[string]proto.Column, chkr Chunker, bgn, end int) (err error) {
+func chunkInput(cols proto.Input, specs colspec.ColSpecs, lngr Lengther, bgn, end int) (err error) {
 
 	ok := true
 	var tt []time.Time
@@ -149,29 +153,30 @@ func chunkInput(cols map[string]proto.Column, chkr Chunker, bgn, end int) (err e
 	var tu []uint8
 	var tz [][]string
 
-	for name, col := range cols {
+	for i := range cols {
 
-		switch tc := col.(type) {
+		switch tc := cols[i].Data.(type) {
 		case *proto.ColDateTime64:
-			tt, ok = chkr.Chunk(name, bgn, end).([]time.Time)
+
+			tt, ok = specs.Chunk(cols[i].Name, lngr, bgn, end).([]time.Time)
 			tc.AppendArr(tt)
 		case *proto.ColEnum:
-			ts, ok = chkr.Chunk(name, bgn, end).([]string)
+			ts, ok = specs.Chunk(cols[i].Name, lngr, bgn, end).([]string)
 			tc.AppendArr(ts)
 		case *proto.ColUInt8:
-			tu, ok = chkr.Chunk(name, bgn, end).([]uint8)
+			tu, ok = specs.Chunk(cols[i].Name, lngr, bgn, end).([]uint8)
 			tc.AppendArr(tu)
 		case *proto.ColStr:
-			ts, ok = chkr.Chunk(name, bgn, end).([]string)
+			ts, ok = specs.Chunk(cols[i].Name, lngr, bgn, end).([]string)
 			tc.AppendArr(ts)
 		case *proto.ColArr[string]:
-			tz, ok = chkr.Chunk(name, bgn, end).([][]string)
+			tz, ok = specs.Chunk(cols[i].Name, lngr, bgn, end).([][]string)
 			tc.AppendArr(tz)
 		default:
-			err = fmt.Errorf("chunk type switch does not support: %#v\n", col)
+			err = fmt.Errorf("chunk type switch does not support: %#v\n", cols[i])
 		}
 		if !ok {
-			err = fmt.Errorf("chunk type switch failed for: %s %#v\n", name, col)
+			err = fmt.Errorf("chunk type assertion failed for: %s %#v\n", cols[i].Name, cols[i])
 		}
 		if err != nil {
 			return

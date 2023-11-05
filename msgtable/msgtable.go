@@ -5,6 +5,7 @@ import (
 
 	"github.com/ClickHouse/ch-go/proto"
 
+	"funhouse/colspec"
 	"funhouse/table"
 )
 
@@ -12,6 +13,22 @@ func MsgTable() table.Table {
 
 	return table.Table{
 		Name: "test_table_insert",
+		Specs: colspec.ColSpecs{
+			"ts":              "Timestamps",
+			"severity_text":   "SeverityTxts",
+			"severity_number": "SeverityNums",
+			"name":            "Names",
+			"body":            "Bodies",
+			"arr":             "Tagses",
+		},
+		Cols: []table.Col{
+			{Name: "ts", Data: (&proto.ColDateTime64{}).WithLocation(time.UTC).WithPrecision(proto.PrecisionNano)},
+			{Name: "severity_text", Data: &proto.ColEnum{}},
+			{Name: "severity_number", Data: &proto.ColUInt8{}},
+			{Name: "body", Data: &proto.ColStr{}},
+			{Name: "name", Data: &proto.ColStr{}},
+			{Name: "arr", Data: (&proto.ColStr{}).Array()},
+		},
 		Ddl: `(
 	ts                DateTime64(9),
 	severity_text     Enum8('INFO'=1, 'DEBUG'=2),
@@ -20,24 +37,6 @@ func MsgTable() table.Table {
 	name              String,
 	arr               Array(String)
 ) ENGINE = Memory`,
-		Cols: table.Cols{
-			ByName: map[string]proto.Column{
-				"ts":              (&proto.ColDateTime64{}).WithLocation(time.UTC).WithPrecision(proto.PrecisionNano),
-				"severity_text":   &proto.ColEnum{},
-				"severity_number": &proto.ColUInt8{},
-				"body":            &proto.ColStr{},
-				"name":            &proto.ColStr{},
-				"arr":             (&proto.ColStr{}).Array(),
-			},
-			Names: []string{
-				"ts",
-				"severity_text",
-				"severity_number",
-				"body",
-				"name",
-				"arr",
-			},
-		},
 	}
 }
 
