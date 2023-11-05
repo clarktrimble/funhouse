@@ -37,12 +37,12 @@ var _ = Describe("ColSpec", func() {
 			It("says the nicest things", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(specs).To(ConsistOf(ColSpecs{
-					{Name: "Timestamps", Tag: "ts"},
-					{Name: "SeverityTxts", Tag: "severity_text"},
-					{Name: "SeverityNums", Tag: "severity_number"},
-					{Name: "Names", Tag: "name"},
-					{Name: "Bodies", Tag: "body"},
-					{Name: "Tagses", Tag: "arr"},
+					{FldName: "Timestamps", ColName: "ts"},
+					{FldName: "SeverityTxts", ColName: "severity_text"},
+					{FldName: "SeverityNums", ColName: "severity_number"},
+					{FldName: "Names", ColName: "name"},
+					{FldName: "Bodies", ColName: "body"},
+					{FldName: "Tagses", ColName: "arr"},
 				}))
 			})
 		})
@@ -59,7 +59,7 @@ var _ = Describe("ColSpec", func() {
 				specs = ColSpecs{
 					{"Timestamps", "ts"},
 					{"SeverityTxts", "severity_text"},
-					{Name: "Tagses", Tag: "arr"},
+					{FldName: "Tagses", ColName: "arr"},
 				}
 				msgs = entity.SampleMsgCols(3)
 			})
@@ -76,7 +76,6 @@ var _ = Describe("ColSpec", func() {
 		)
 
 		JustBeforeEach(func() {
-			//vals = specs.Chunk("SeverityTxts", msgs, 3, 6)
 			vals = specs.Chunk("severity_text", msgs, 3, 6)
 		})
 
