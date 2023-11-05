@@ -2,19 +2,10 @@ package colspec
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
-	"time"
+	"strings"
 )
-
-type MsgCols struct {
-	Length       int
-	Timestamps   []time.Time `col:"ts"`
-	SeverityTxts []string    `col:"severity_text"`
-	SeverityNums []uint8     `col:"severity_number"`
-	Names        []string    `col:"name"`
-	Bodies       []string    `col:"body"`
-	Tagses       [][]string  `col:"arr"`
-}
 
 var ErrInvalidSpecification = errors.New("specification must be a struct pointer")
 
@@ -55,31 +46,67 @@ func New(obj any) (specs ColSpecs, err error) {
 	return
 }
 
-func (specs ColSpecs) ChunkToo(fieldName string, obj any, bgn, end int) (vals any) {
+func (specs ColSpecs) ValidateCols(ln int, obj any) (err error) {
+
+	// Todo: check for obj suitable and that fields are slice
+	//       maybe store name of struct from harvesting of fields?
+
+	// check that all columns are of a given length
+
+	errTxt := []string{}
+	ve := reflect.ValueOf(obj).Elem()
 
 	for _, cs := range specs {
-		if cs.Name != fieldName {
-			continue // Todo: lookup!
+		fln := ve.FieldByName(cs.Name).Len()
+		if ln != fln {
+			errTxt = append(errTxt, fmt.Sprintf("%s has len %d expected %d", cs.Name, fln, ln))
 		}
-
-		ve := reflect.ValueOf(obj).Elem()
-		//fd := ve.FieldByName(fieldName)
-		//fmt.Printf(">>> typeee: %#v\n", reflect.ValueOf(fd))
-		//fmt.Printf(">>> typeee: %#v\n", fd.Type().String())
-		//switch fd.Type().String() {
-		//case "[]int":
-		//fmt.Println("int here")
-		//case "[]string":
-		//fmt.Println("string here")
-		//}
-
-		//fmt.Printf(">>> typeee: %#v\n", reflect.TypeOf(obj).Elem())
-		//return ve.FieldByName(fieldName)
-		return ve.FieldByName(fieldName).Slice(bgn, end).Interface()
 	}
 
-	//default: // Todo: keep???
-	//vals = nil // noop but want to be obvious
+	if len(errTxt) != 0 {
+		err = fmt.Errorf("validation failed: %s", strings.Join(errTxt, ","))
+	}
+
+	return
+}
+
+// func (specs ColSpecs) Chunk(fieldName string, obj any, bgn, end int) (vals any) {
+func (specs ColSpecs) Chunk(colName string, obj any, bgn, end int) (vals any) {
+
+	fieldName := ""
+	for _, cs := range specs {
+		if cs.Tag != colName {
+			continue // Todo: lookup! loop here is blah
+		}
+		fieldName = cs.Name
+	}
+
+	voe := reflect.ValueOf(obj).Elem()
+	return voe.FieldByName(fieldName).Slice(bgn, end).Interface()
+}
+
+func (specs ColSpecs) Append(colName string, vals any, obj any) (err error) {
+
+	// Todo: wring hands about vals type
+
+	ve := reflect.ValueOf(obj).Elem()
+
+	for _, cs := range specs {
+		if cs.Tag != colName {
+			continue // Todo: lookup! loop here is blah
+		}
+
+		field := ve.FieldByName(cs.Name)
+
+		// getting real trouble wo this check
+		vov := reflect.ValueOf(vals)
+		if vov.Kind() != reflect.Slice {
+			err = fmt.Errorf("cannot append non-slice: %#v", vals)
+			return
+		}
+
+		field.Set(reflect.AppendSlice(field, vov))
+	}
 
 	return
 }

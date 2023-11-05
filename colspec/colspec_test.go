@@ -16,55 +16,42 @@ func TestColSpec(t *testing.T) {
 }
 
 var _ = Describe("ColSpec", func() {
+	var (
+		specs ColSpecs
+		msgs  *entity.MsgCols
+		err   error
+	)
+	// Todo: pull more stuff up here yeah?
 
-	/*
-		Describe("exploring colspecs", func() {
-			var (
-				specs ColSpecs
-				msgs  *entity.MsgCols
-				err   error
-			)
-
-			JustBeforeEach(func() {
-				//func New(obj any) (colSpecs ColSpecs, err error) {
-				specs, err = New(msgs)
-			})
-
-			When("all is well", func() {
-				BeforeEach(func() {
-					msgs = entity.SampleMsgCols(3) // Todo: can haz uninit?
-				})
-
-				It("says the nicest things", func() {
-					Expect(err).ToNot(HaveOccurred())
-					Expect(specs).To(Equal(entity.ColSpecs{
-						{Name: "Timestamps", Tag: "ts"},
-						{Name: "SeverityTxts", Tag: "severity_text"},
-						{Name: "SeverityNums", Tag: "severity_number"},
-						{Name: "Names", Tag: "name"},
-						{Name: "Bodies", Tag: "body"},
-						{Name: "Tagses", Tag: "arr"},
-					}))
-				})
-			})
-		})
-	*/
-
-	Describe("exploring chunk", func() {
-		var (
-			specs ColSpecs
-			msgs  *entity.MsgCols
-			vals  any
-			//err   error
-		)
+	Describe("exploring colspecs", func() {
 
 		JustBeforeEach(func() {
-			//err = specs.AppendToo("ts", []time.Time{time.Time{}}, msgs)
-			//err = specs.AppendToo("severity_text", []string{"INFRO", "DEBURG"}, msgs)
-			//err = specs.AppendToo("arr", [][]string{{"froo", "brar"}}, msgs)
-			//func (specs ColSpecs) ChunkToo(fieldName string, obj any, bgn, end int) (vals any) {
-			vals = specs.ChunkToo("SeverityTxts", msgs, 3, 6)
+			specs, err = New(msgs)
+		})
 
+		When("all is well", func() {
+			BeforeEach(func() {
+				msgs = entity.SampleMsgCols(3) // Todo: can haz uninit struct?
+			})
+
+			It("says the nicest things", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(specs).To(ConsistOf(ColSpecs{
+					{Name: "Timestamps", Tag: "ts"},
+					{Name: "SeverityTxts", Tag: "severity_text"},
+					{Name: "SeverityNums", Tag: "severity_number"},
+					{Name: "Names", Tag: "name"},
+					{Name: "Bodies", Tag: "body"},
+					{Name: "Tagses", Tag: "arr"},
+				}))
+			})
+		})
+	})
+
+	Describe("checking that all columns are a given length", func() {
+
+		JustBeforeEach(func() {
+			err = specs.ValidateCols(3, msgs)
 		})
 
 		When("all is well", func() {
@@ -74,24 +61,67 @@ var _ = Describe("ColSpec", func() {
 					{"SeverityTxts", "severity_text"},
 					{Name: "Tagses", Tag: "arr"},
 				}
-				msgs = entity.SampleMsgCols(9)
+				msgs = entity.SampleMsgCols(3)
 			})
 
-			FIt("says the nicest things", func() {
-				//Expect(err).ToNot(HaveOccurred())
-				//Expect(msgs.SeverityTxts).To(Equal([]string{"INFO", "INFO", "INFO", "INFRO", "DEBURG"}))
-				Expect(vals).To(Equal([]string{"INFO", "INFO", "INFO"}))
-				/*
-					Expect(msgs.Tagses).To(Equal([][]string{
-						{"sna", "foo"},
-						{"sna", "foo"},
-						{"sna", "foo"},
-						{"froo", "brar"},
-					}))
-				*/
-				//fmt.Printf(">>> msgs: %#v\n", msgs.Tagses)
-				//fmt.Printf(">>> msgs: %#v\n", msgs)
+			It("does not error", func() {
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 	})
+
+	Describe("retrieving a chunk of column", func() {
+		var (
+			vals any
+		)
+
+		JustBeforeEach(func() {
+			//vals = specs.Chunk("SeverityTxts", msgs, 3, 6)
+			vals = specs.Chunk("severity_text", msgs, 3, 6)
+		})
+
+		When("all is well", func() {
+			BeforeEach(func() {
+				specs = ColSpecs{
+					{"SeverityTxts", "severity_text"},
+				}
+				msgs = entity.SampleMsgCols(9)
+			})
+
+			It("produces the chunk", func() {
+				Expect(vals).To(Equal([]string{"INFO", "INFO", "INFO"}))
+			})
+		})
+	})
+
+	Describe("appending a slice to column", func() {
+
+		// Todo: check more types?
+
+		JustBeforeEach(func() {
+			err = specs.Append("arr", [][]string{{"froo", "brar"}}, msgs)
+		})
+
+		When("all is well", func() {
+			BeforeEach(func() {
+				specs = ColSpecs{
+					{"Timestamps", "ts"},
+					{"SeverityTxts", "severity_text"},
+					{"Tagses", "arr"},
+				}
+				msgs = entity.SampleMsgCols(3)
+			})
+
+			It("appends the slice", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(msgs.Tagses).To(Equal([][]string{
+					{"sna", "foo"},
+					{"sna", "foo"},
+					{"sna", "foo"},
+					{"froo", "brar"},
+				}))
+			})
+		})
+	})
+
 })

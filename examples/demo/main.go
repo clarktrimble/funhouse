@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"funhouse"
+	"funhouse/colspec"
 	"funhouse/entity"
 	"funhouse/msgtable"
 )
@@ -24,13 +25,19 @@ func main() {
 		panic(err)
 	}
 
-	//err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
-	//if err != nil {
-	//panic(err)
-	//}
-
 	mcs := &entity.MsgCols{}
-	err = fh.GetColumns(ctx, msgTable, mcs)
+	specs, err := colspec.New(mcs)
+	if err != nil {
+		panic(err)
+	}
+
+	err = fh.PutColumns(ctx, msgTable, specs, entity.SampleMsgCols(30))
+	if err != nil {
+		panic(err)
+	}
+
+	//func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, specs colspec.ColSpecs, appr Appender) (err error) {
+	err = fh.GetColumns(ctx, msgTable, specs, mcs)
 	if err != nil {
 		panic(err)
 	}

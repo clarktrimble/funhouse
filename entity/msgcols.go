@@ -1,11 +1,8 @@
 package entity
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
-	"reflect"
-	"strings"
 	"time"
 )
 
@@ -19,6 +16,7 @@ type MsgCols struct {
 	Tagses       [][]string  `col:"arr"`
 }
 
+/*
 var ErrInvalidSpecification = errors.New("specification must be a struct pointer")
 
 type ColSpec struct {
@@ -97,24 +95,6 @@ func (specs ColSpecs) ChunkToo(fieldName string, obj any, bgn, end int) (vals an
 		//return ve.FieldByName(fieldName)
 		return ve.FieldByName(fieldName).Slice(bgn, end).Interface()
 	}
-	/*
-		switch name {
-		case "ts":
-			vals = mcs.Timestamps[bgn:end]
-		case "severity_text":
-			vals = mcs.SeverityTxts[bgn:end]
-		case "severity_number":
-			vals = mcs.SeverityNums[bgn:end]
-		case "name":
-			vals = mcs.Names[bgn:end]
-		case "body":
-			vals = mcs.Bodies[bgn:end]
-		case "arr":
-			vals = mcs.Tagses[bgn:end]
-			default: // Todo: keep???
-			vals = nil // noop but want to be obvious
-		}
-	*/
 
 	return
 }
@@ -202,21 +182,6 @@ func ReflectoToo(spec any) (err error) {
 			continue
 		}
 
-		// not crystal clear on what this section's about ..
-		/*
-			for f.Kind() == reflect.Ptr {
-				if f.IsNil() {
-					if f.Type().Elem().Kind() != reflect.Struct {
-						// nil pointer to a non-struct: leave it alone
-						break
-					}
-					// nil pointer to struct: create a zero instance
-					f.Set(reflect.New(f.Type().Elem()))
-				}
-				f = f.Elem()
-			}
-		*/
-
 		val := s.FieldByName(ftype.Name)
 		fmt.Printf(">>> name: %s tag: %s len: %d\n", ftype.Name, ftype.Tag.Get("col"), val.Len())
 
@@ -224,15 +189,6 @@ func ReflectoToo(spec any) (err error) {
 		//val := elem.FieldByName(cf.Name)
 		//fmt.Printf(">>> len: %#v\n", val.Len())
 
-		// Capture information about the config variable
-		/*
-			info := varInfo{
-				Name:  ftype.Name,
-				Field: f,
-				Tags:  ftype.Tag,
-				Alt:   strings.ToUpper(ftype.Tag.Get("envconfig")),
-			}
-		*/
 	}
 
 	return
@@ -279,22 +235,9 @@ func Reflecto(msgs *MsgCols) (err error) {
 		//fmt.Println(gVal.Interface())
 	}
 
-	/*
-			field := tp.Field(i)
-			if alias, ok := field.Tag.Lookup("col"); ok {
-				if alias == "" {
-					fmt.Println("(blank)")
-				} else {
-					fmt.Println(alias)
-				}
-			} else {
-				fmt.Println("(not specified)")
-			}
-		}
-	*/
-
 	return
 }
+*/
 
 func NewMsgCols(size int) *MsgCols {
 
@@ -309,6 +252,7 @@ func NewMsgCols(size int) *MsgCols {
 	}
 }
 
+/*
 func (mcs *MsgCols) Validate() (err error) {
 
 	ts := len(mcs.Timestamps)
@@ -390,6 +334,7 @@ func (mcs *MsgCols) Append(name string, vals any) (err error) {
 
 	return
 }
+*/
 
 func (mcs *MsgCols) Len() int {
 

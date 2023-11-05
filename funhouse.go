@@ -9,6 +9,7 @@ import (
 	"github.com/ClickHouse/ch-go"
 	"github.com/ClickHouse/ch-go/proto"
 
+	"funhouse/colspec"
 	"funhouse/table"
 )
 
@@ -42,11 +43,12 @@ func (fh *FunHouse) UpsertTable(ctx context.Context, tbl table.Table) (err error
 
 type Appender interface {
 	AddLen(size int)
-	Append(name string, vals any) (err error)
-	Validate() (err error)
+	Len() int
+	//Append(name string, vals any) (err error)
+	//Validate() (err error)
 }
 
-func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, appr Appender) (err error) {
+func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, specs colspec.ColSpecs, appr Appender) (err error) {
 
 	results := tbl.Cols.Results()
 
@@ -57,24 +59,28 @@ func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, appr Append
 		OnResult: func(ctx context.Context, block proto.Block) error {
 
 			appr.AddLen(block.Rows)
-			err := appendResults(results, appr)
+			err := appendResults(results, specs, appr)
 			return err
 		},
 	})
 
-	err = appr.Validate()
+	//err = appr.Validate()
+	//func (specs ColSpecs) ValidateCols(ln int, obj any) (err error) {
+
+	err = specs.ValidateCols(appr.Len(), appr)
 	return
 }
 
 type Chunker interface {
-	Chunk(name string, bgn, end int) (vals any)
+	//Chunk(name string, bgn, end int) (vals any)
 	Len() int
-	Validate() (err error)
+	//Validate() (err error)
 }
 
-func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunker) (err error) {
+func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, specs colspec.ColSpecs, chkr Chunker) (err error) {
 
-	err = chkr.Validate()
+	//err = chkr.Validate()
+	err = specs.ValidateCols(chkr.Len(), chkr)
 	if err != nil {
 		return
 	}
@@ -91,7 +97,7 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunke
 			input.Reset()
 			end := min(idx+fh.ChunkSize, chkr.Len())
 
-			err := chunkInput(cols, chkr, idx, end)
+			err := chunkInput(cols, specs, chkr, idx, end)
 			if err != nil {
 				return err
 			}
@@ -113,21 +119,28 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, chkr Chunke
 
 // unexported
 
-func appendResults(results proto.Results, appr Appender) (err error) {
+func appendResults(results proto.Results, specs colspec.ColSpecs, appr Appender) (err error) {
 
 	for _, col := range results {
 
+		//func (specs ColSpecs) Append(colName string, vals any, obj any) (err error) {
+
 		switch tc := col.Data.(type) {
 		case *proto.ColDateTime64:
-			err = appr.Append(col.Name, dt64Values(tc))
+			specs.Append(col.Name, dt64Values(tc), appr)
+			//err = appr.Append(col.Name, dt64Values(tc))
 		case *proto.ColEnum:
-			err = appr.Append(col.Name, enumValues(tc))
+			specs.Append(col.Name, enumValues(tc), appr)
+			//err = appr.Append(col.Name, enumValues(tc))
 		case *proto.ColUInt8:
-			err = appr.Append(col.Name, uint8Values(tc))
+			specs.Append(col.Name, uint8Values(tc), appr)
+			//err = appr.Append(col.Name, uint8Values(tc))
 		case *proto.ColStr:
-			err = appr.Append(col.Name, strValues(tc))
+			specs.Append(col.Name, strValues(tc), appr)
+			//err = appr.Append(col.Name, strValues(tc))
 		case *proto.ColArr[string]:
-			err = appr.Append(col.Name, strArrayValues(tc))
+			specs.Append(col.Name, strArrayValues(tc), appr)
+			//err = appr.Append(col.Name, strArrayValues(tc))
 		default:
 			err = fmt.Errorf("append type switch does not support: %#v\n", col)
 		}
@@ -141,7 +154,7 @@ func appendResults(results proto.Results, appr Appender) (err error) {
 	return
 }
 
-func chunkInput(cols map[string]proto.Column, chkr Chunker, bgn, end int) (err error) {
+func chunkInput(cols map[string]proto.Column, specs colspec.ColSpecs, chkr Chunker, bgn, end int) (err error) {
 
 	ok := true
 	var tt []time.Time
@@ -153,19 +166,25 @@ func chunkInput(cols map[string]proto.Column, chkr Chunker, bgn, end int) (err e
 
 		switch tc := col.(type) {
 		case *proto.ColDateTime64:
-			tt, ok = chkr.Chunk(name, bgn, end).([]time.Time)
+			//func (specs ColSpecs) Chunk(fieldName string, obj any, bgn, end int) (vals any) {
+			//tt, ok = chkr.Chunk(name, bgn, end).([]time.Time)
+			tt, ok = specs.Chunk(name, chkr, bgn, end).([]time.Time)
 			tc.AppendArr(tt)
 		case *proto.ColEnum:
-			ts, ok = chkr.Chunk(name, bgn, end).([]string)
+			//ts, ok = chkr.Chunk(name, bgn, end).([]string)
+			ts, ok = specs.Chunk(name, chkr, bgn, end).([]string)
 			tc.AppendArr(ts)
 		case *proto.ColUInt8:
-			tu, ok = chkr.Chunk(name, bgn, end).([]uint8)
+			//tu, ok = chkr.Chunk(name, bgn, end).([]uint8)
+			tu, ok = specs.Chunk(name, chkr, bgn, end).([]uint8)
 			tc.AppendArr(tu)
 		case *proto.ColStr:
-			ts, ok = chkr.Chunk(name, bgn, end).([]string)
+			//ts, ok = chkr.Chunk(name, bgn, end).([]string)
+			ts, ok = specs.Chunk(name, chkr, bgn, end).([]string)
 			tc.AppendArr(ts)
 		case *proto.ColArr[string]:
-			tz, ok = chkr.Chunk(name, bgn, end).([][]string)
+			//tz, ok = chkr.Chunk(name, bgn, end).([][]string)
+			tz, ok = specs.Chunk(name, chkr, bgn, end).([][]string)
 			tc.AppendArr(tz)
 		default:
 			err = fmt.Errorf("chunk type switch does not support: %#v\n", col)
