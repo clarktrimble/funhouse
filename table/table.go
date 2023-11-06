@@ -10,7 +10,7 @@ type Table struct {
 	Name  string
 	Ddl   string
 	Cols  []Col
-	Specs colspec.ColSpecs
+	Specs colspec.ColSpec
 }
 
 type Col struct {

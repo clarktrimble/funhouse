@@ -1,9 +1,6 @@
 // Package colspec reflects on column-oriented structures.
 package colspec
 
-// Todo: tighten up reflection! The only concern here is slice :)
-// Todo: think about strengthening relationship with suitiable struts.
-
 import (
 	"errors"
 	"fmt"
@@ -15,53 +12,65 @@ var (
 	ErrInvalidSpec = errors.New(`spec must be a struct pointer with "col" slice fields`)
 )
 
-// ColSpecs map column names to a struct's field names of type slice.
-type ColSpecs map[string]string
+// ColSpec maps column names to a struct's field names of type slice.
+// Package path and type name is checked against ojb's passed in for some measure of safety.
+type ColSpec struct {
+	PkgPath  string
+	TypeName string
+	ColToFld map[string]string
+}
 
-// New create ColSpecs by finding slice fields with a "col" tag.
-func New(obj any) (specs ColSpecs, err error) {
+// New creates ColSpecs by finding slice fields with a "col" tag.
+func New(obj any) (specs ColSpec, err error) {
 
-	specs = ColSpecs{}
-
-	s := reflect.ValueOf(obj)
-	if s.Kind() != reflect.Ptr {
-		err = ErrInvalidSpec
+	stc, stcType, err := structType(obj)
+	if err != nil {
 		return
 	}
-	s = s.Elem()
-	if s.Kind() != reflect.Struct {
-		err = ErrInvalidSpec
-		return
-	}
-	typeOfSpec := s.Type()
 
-	for i := 0; i < s.NumField(); i++ {
-		f := s.Field(i)
-		ftype := typeOfSpec.Field(i)
-		if !f.CanSet() || ftype.Tag.Get("col") == "" {
+	specs = ColSpec{
+		TypeName: stcType.Name(),
+		PkgPath:  stcType.PkgPath(),
+		ColToFld: map[string]string{},
+	}
+
+	for i := 0; i < stc.NumField(); i++ {
+
+		// only first "layer" of fields are considered
+
+		field := stc.Field(i)
+		structField := stcType.Field(i)
+		colName := structField.Tag.Get("col")
+
+		if !field.CanSet() || colName == "" {
 			continue
 		}
 
-		specs[ftype.Tag.Get("col")] = ftype.Name
+		if field.Kind() != reflect.Slice {
+			err = fmt.Errorf("field: %s is not slice", structField.Name)
+			return
+		}
+
+		specs.ColToFld[colName] = structField.Name
 	}
 
 	return
 }
 
-// ValidateCols checks that all "col" fields are of a given length.
-func (specs ColSpecs) ValidateCols(glen int, obj any) (err error) {
+// ValLens checks that all "col" fields are of a given length.
+func (specs ColSpec) ValLens(length int, obj any) (err error) {
 
-	// Todo: check for obj suitable and that fields are slice
-	//       maybe store name of struct from harvesting of fields?
+	stc, err := specs.checkType(obj)
+	if err != nil {
+		return
+	}
 
 	errTxt := []string{}
-	ve := reflect.ValueOf(obj).Elem()
+	for _, fld := range specs.ColToFld {
 
-	for _, fldName := range specs {
-
-		flen := ve.FieldByName(fldName).Len()
-		if glen != flen {
-			errTxt = append(errTxt, fmt.Sprintf("%s has len %d expected %d", fldName, flen, glen))
+		flen := stc.FieldByName(fld).Len()
+		if length != flen {
+			errTxt = append(errTxt, fmt.Sprintf("%s has len %d, expected %d", fld, flen, length))
 		}
 	}
 
@@ -73,37 +82,80 @@ func (specs ColSpecs) ValidateCols(glen int, obj any) (err error) {
 }
 
 // Chunk gets a range of values for the given column name.
-func (specs ColSpecs) Chunk(colName string, obj any, bgn, end int) (vals any) {
+func (specs ColSpec) Chunk(col string, obj any, bgn, end int) any {
 
-	fldName, ok := specs[colName]
+	fld, ok := specs.ColToFld[col]
 	if !ok {
-		return
+		return nil
 	}
 
-	voe := reflect.ValueOf(obj).Elem()
-	return voe.FieldByName(fldName).Slice(bgn, end).Interface()
+	stc, err := specs.checkType(obj)
+	if err != nil {
+		return nil
+	}
+
+	return stc.FieldByName(fld).Slice(bgn, end).Interface()
 }
 
 // Append adds values to obj's field corresponding to the given column name.
-func (specs ColSpecs) Append(colName string, vals any, obj any) (err error) {
+func (specs ColSpec) Append(col string, vals any, obj any) (err error) {
 
-	// Todo: wring hands about vals type
-
-	ve := reflect.ValueOf(obj).Elem()
-
-	fldName, ok := specs[colName]
-	if !ok {
-		return fmt.Errorf("unkown column name: %s", colName)
+	stc, err := specs.checkType(obj)
+	if err != nil {
+		return
 	}
-	field := ve.FieldByName(fldName)
 
-	// getting real trouble wo this check, maybe even a bug in reflect
+	fld, ok := specs.ColToFld[col]
+	if !ok {
+		return fmt.Errorf("unkown column name: %s", col)
+	}
+	field := stc.FieldByName(fld)
+
 	vov := reflect.ValueOf(vals)
+
+	// getting real trouble wo this check, even when is slice (??)
+	// Todo: check type in vals against specs
 	if vov.Kind() != reflect.Slice {
 		err = fmt.Errorf("cannot append non-slice: %#v", vals)
 		return
 	}
 
 	field.Set(reflect.AppendSlice(field, vov))
+	return
+}
+
+// unexported
+
+func structType(i any) (stc reflect.Value, stcType reflect.Type, err error) {
+
+	ptr := reflect.ValueOf(i)
+	if ptr.Kind() != reflect.Ptr {
+		err = fmt.Errorf("pointer required, got: %#v", i)
+		return
+	}
+
+	stc = ptr.Elem()
+	if stc.Kind() != reflect.Struct {
+		err = fmt.Errorf("structure required, got: %#v", i)
+		return
+	}
+
+	stcType = stc.Type()
+	return
+}
+
+// func (specs ColSpecs) checkType(stcType reflect.Type) (err error) {
+func (specs ColSpec) checkType(i any) (stc reflect.Value, err error) {
+
+	var stcType reflect.Type
+	stc, stcType, err = structType(i)
+	if err != nil {
+		return
+	}
+
+	if specs.TypeName != stcType.Name() || specs.PkgPath != stcType.PkgPath() {
+		err = fmt.Errorf("type does not match, expected %s %s, got: %s %s",
+			specs.TypeName, specs.PkgPath, stcType.Name(), stcType.PkgPath())
+	}
 	return
 }

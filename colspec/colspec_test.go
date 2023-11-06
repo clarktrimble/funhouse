@@ -10,6 +10,8 @@ import (
 	"funhouse/examples/demo/entity"
 )
 
+// Todo: check errors
+
 func TestColSpec(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "ColSpec Suite")
@@ -17,25 +19,29 @@ func TestColSpec(t *testing.T) {
 
 var _ = Describe("ColSpec", func() {
 	var (
-		specs ColSpecs
+		specs ColSpec
 		msgs  *entity.MsgCols
 		err   error
 	)
 	BeforeEach(func() {
-		specs = ColSpecs{
-			"ts":              "Timestamps",
-			"severity_text":   "SeverityTxts",
-			"severity_number": "SeverityNums",
-			"name":            "Names",
-			"body":            "Bodies",
-			"arr":             "Tagses",
+		specs = ColSpec{
+			TypeName: "MsgCols",
+			PkgPath:  "funhouse/examples/demo/entity",
+			ColToFld: map[string]string{
+				"ts":              "Timestamps",
+				"severity_text":   "SeverityTxts",
+				"severity_number": "SeverityNums",
+				"name":            "Names",
+				"body":            "Bodies",
+				"arr":             "Tagses",
+			},
 		}
 		msgs = entity.SampleMsgCols(3)
 	})
 
 	Describe("creating colspecs from a struct", func() {
 		var (
-			newSpecs ColSpecs
+			newSpecs ColSpec
 		)
 
 		JustBeforeEach(func() {
@@ -53,7 +59,7 @@ var _ = Describe("ColSpec", func() {
 	Describe("checking that all columns are a given length", func() {
 
 		JustBeforeEach(func() {
-			err = specs.ValidateCols(3, msgs)
+			err = specs.ValLens(3, msgs)
 		})
 
 		When("all is well", func() {
@@ -84,8 +90,6 @@ var _ = Describe("ColSpec", func() {
 	})
 
 	Describe("appending a slice to column", func() {
-
-		// Todo: check more types?
 
 		JustBeforeEach(func() {
 			err = specs.Append("arr", [][]string{{"froo", "brar"}}, msgs)

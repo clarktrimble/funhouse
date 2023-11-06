@@ -57,9 +57,6 @@ func (fh *FunHouse) GetColumns(ctx context.Context, qs string, tbl table.Table, 
 	results := tbl.Results()
 
 	err = fh.Client.Do(ctx, ch.Query{
-		// Todo: accept query from beyond
-		// Body:   fmt.Sprintf("select * from %s limit 5", MsgTable),
-		//Body:   fmt.Sprintf("select * from %s", tbl.Name),
 		Body:   fmt.Sprintf(qs, tbl.Name),
 		Result: results,
 		OnResult: func(ctx context.Context, block proto.Block) error {
@@ -73,14 +70,14 @@ func (fh *FunHouse) GetColumns(ctx context.Context, qs string, tbl table.Table, 
 		return
 	}
 
-	err = tbl.Specs.ValidateCols(lngr.Len(), lngr)
+	err = tbl.Specs.ValLens(lngr.Len(), lngr)
 	return
 }
 
 // PutColumns inserts chunks into a table.
 func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, lngr Lengther) (err error) {
 
-	err = tbl.Specs.ValidateCols(lngr.Len(), lngr)
+	err = tbl.Specs.ValLens(lngr.Len(), lngr)
 	if err != nil {
 		return
 	}
@@ -118,7 +115,7 @@ func (fh *FunHouse) PutColumns(ctx context.Context, tbl table.Table, lngr Length
 
 // unexported
 
-func appendResults(results proto.Results, specs colspec.ColSpecs, lngr Lengther) (err error) {
+func appendResults(results proto.Results, specs colspec.ColSpec, lngr Lengther) (err error) {
 
 	for _, col := range results {
 
@@ -146,7 +143,7 @@ func appendResults(results proto.Results, specs colspec.ColSpecs, lngr Lengther)
 	return
 }
 
-func chunkInput(cols proto.Input, specs colspec.ColSpecs, lngr Lengther, bgn, end int) (err error) {
+func chunkInput(cols proto.Input, specs colspec.ColSpec, lngr Lengther, bgn, end int) (err error) {
 
 	ok := true
 	var tt []time.Time

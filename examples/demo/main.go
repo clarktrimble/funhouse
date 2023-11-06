@@ -15,7 +15,8 @@ func main() {
 	// create message columns and table objects
 
 	mcs := &entity.MsgCols{}
-	msgTable := msgtable.MsgTable()
+	msgTable, err := msgtable.MsgTable()
+	check(err)
 
 	// connect with db and create table if needed
 
