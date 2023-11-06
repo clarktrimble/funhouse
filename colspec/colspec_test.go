@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	. "funhouse/colspec"
-	"funhouse/entity"
+	"funhouse/examples/demo/entity"
 )
 
 func TestColSpec(t *testing.T) {
@@ -43,21 +43,9 @@ var _ = Describe("ColSpec", func() {
 		})
 
 		When("all is well", func() {
-			//BeforeEach(func() {
-			//msgs = entity.SampleMsgCols(3) // Todo: can haz uninit struct?
-			//})
-
 			It("says the nicest things", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(newSpecs).To(Equal(specs))
-				//ColSpecs{
-				//"ts":              "Timestamps",
-				//"severity_text":   "SeverityTxts",
-				//"severity_number": "SeverityNums",
-				//"name":            "Names",
-				//"body":            "Bodies",
-				//"arr":             "Tagses",
-				//}))
 			})
 		})
 	})

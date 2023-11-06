@@ -52,14 +52,15 @@ type Lengther interface {
 }
 
 // GetColumns reads blocks from a table.
-func (fh *FunHouse) GetColumns(ctx context.Context, tbl table.Table, lngr Lengther) (err error) {
+func (fh *FunHouse) GetColumns(ctx context.Context, qs string, tbl table.Table, lngr Lengther) (err error) {
 
 	results := tbl.Results()
 
 	err = fh.Client.Do(ctx, ch.Query{
 		// Todo: accept query from beyond
 		// Body:   fmt.Sprintf("select * from %s limit 5", MsgTable),
-		Body:   fmt.Sprintf("select * from %s", tbl.Name),
+		//Body:   fmt.Sprintf("select * from %s", tbl.Name),
+		Body:   fmt.Sprintf(qs, tbl.Name),
 		Result: results,
 		OnResult: func(ctx context.Context, block proto.Block) error {
 

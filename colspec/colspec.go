@@ -1,4 +1,8 @@
+// Package colspec reflects on column-oriented structures.
 package colspec
+
+// Todo: tighten up reflection! The only concern here is slice :)
+// Todo: think about strengthening relationship with suitiable struts.
 
 import (
 	"errors"
@@ -11,11 +15,10 @@ var (
 	ErrInvalidSpec = errors.New(`spec must be a struct pointer with "col" slice fields`)
 )
 
-// ColSpecs tracks column fields in a structure.
+// ColSpecs map column names to a struct's field names of type slice.
 type ColSpecs map[string]string
 
-// New create ColSpecs for a given object.
-// Slice fields with a "col" tag are picked up.
+// New create ColSpecs by finding slice fields with a "col" tag.
 func New(obj any) (specs ColSpecs, err error) {
 
 	specs = ColSpecs{}

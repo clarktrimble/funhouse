@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"funhouse"
-	"funhouse/entity"
-	"funhouse/msgtable"
+
+	"funhouse/examples/demo/entity"
+	"funhouse/examples/demo/msgtable"
 )
 
 func main() {
@@ -27,15 +28,11 @@ func main() {
 
 	// insert some messages and get them back
 
-	//err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
-	//check(err)
-
-	err = fh.GetColumns(ctx, msgTable, mcs)
+	err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
 	check(err)
 
-	//fmt.Printf(">>> mcs: %#v\n", mcs)
-	//fmt.Printf(">>> got %d msgs\n", mcs.Len())
-	//return
+	err = fh.GetColumns(ctx, "select * from %s", msgTable, mcs)
+	check(err)
 
 	// convert to non-column messages and print
 
@@ -44,10 +41,10 @@ func main() {
 		msgs[i] = mcs.Row(i)
 	}
 
-	fmt.Printf("%s", msgs)
+	fmt.Printf("%s\n", msgs)
 }
 
-// handle top-level errors
+// handle top-level errors, nooo!
 func check(err error) {
 	if err != nil {
 		panic(err)
