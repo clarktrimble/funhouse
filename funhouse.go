@@ -121,15 +121,15 @@ func appendResults(results proto.Results, specs colspec.ColSpec, lngr Lengther) 
 
 		switch tc := col.Data.(type) {
 		case *proto.ColDateTime64:
-			err = specs.Append(col.Name, Dt64Values(tc), lngr)
+			err = specs.Append(col.Name, dt64Values(tc), lngr)
 		case *proto.ColEnum:
-			err = specs.Append(col.Name, EnumValues(tc), lngr)
+			err = specs.Append(col.Name, enumValues(tc), lngr)
 		case *proto.ColUInt8:
-			err = specs.Append(col.Name, UInt8Values(tc), lngr)
+			err = specs.Append(col.Name, uint8Values(tc), lngr)
 		case *proto.ColStr:
-			err = specs.Append(col.Name, StrValues(tc), lngr)
+			err = specs.Append(col.Name, strValues(tc), lngr)
 		case *proto.ColArr[string]:
-			err = specs.Append(col.Name, StrArrayValues(tc), lngr)
+			err = specs.Append(col.Name, strArrayValues(tc), lngr)
 		default:
 			err = fmt.Errorf("append type switch does not support: %#v\n", col)
 		}
@@ -185,7 +185,7 @@ func chunkInput(cols proto.Input, specs colspec.ColSpec, lngr Lengther, bgn, end
 
 // get values from different col types
 
-func StrArrayValues(ca *proto.ColArr[string]) (vals [][]string) {
+func strArrayValues(ca *proto.ColArr[string]) (vals [][]string) {
 
 	vals = make([][]string, ca.Rows())
 
@@ -196,12 +196,12 @@ func StrArrayValues(ca *proto.ColArr[string]) (vals [][]string) {
 	return
 }
 
-func UInt8Values(ci *proto.ColUInt8) (vals []uint8) {
+func uint8Values(ci *proto.ColUInt8) (vals []uint8) {
 
 	return *ci
 }
 
-func Dt64Values(cd *proto.ColDateTime64) (vals []time.Time) {
+func dt64Values(cd *proto.ColDateTime64) (vals []time.Time) {
 
 	vals = make([]time.Time, cd.Rows())
 
@@ -212,7 +212,7 @@ func Dt64Values(cd *proto.ColDateTime64) (vals []time.Time) {
 	return
 }
 
-func StrValues(cs *proto.ColStr) (vals []string) {
+func strValues(cs *proto.ColStr) (vals []string) {
 
 	vals = make([]string, cs.Rows())
 
@@ -223,7 +223,7 @@ func StrValues(cs *proto.ColStr) (vals []string) {
 	return
 }
 
-func EnumValues(ce *proto.ColEnum) []string {
+func enumValues(ce *proto.ColEnum) []string {
 
 	return ce.Values
 }

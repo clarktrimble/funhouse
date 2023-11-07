@@ -7,7 +7,7 @@ import (
 	"funhouse"
 	"funhouse/entity"
 
-	"funhouse/examples/demo/msgtable"
+	"funhouse/examples/reflecting/msgtable"
 )
 
 func main() {
@@ -29,8 +29,8 @@ func main() {
 
 	// insert some messages and get them back
 
-	//err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
-	//check(err)
+	err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
+	check(err)
 
 	err = fh.GetColumns(ctx, "select * from %s", msgTable, mcs)
 	check(err)

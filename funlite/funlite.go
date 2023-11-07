@@ -1,4 +1,4 @@
-// Package funlite provides helpers for use with lightweight interactions with clickhouse.
+// Package funlite provides helpers for use with lite clickhouse.
 package funlite
 
 import (
@@ -57,12 +57,17 @@ func StrArrayValues(cr proto.ColResult) (vals [][]string) {
 // UInt8Values unpacks uint8's from a result.
 func UInt8Values(cr proto.ColResult) (vals []uint8) {
 
-	ci, ok := cr.(*proto.ColUInt8)
+	ca, ok := cr.(*proto.ColUInt8)
 	if !ok {
 		return
 	}
 
-	return *ci
+	vals = make([]uint8, ca.Rows())
+	for i := 0; i < ca.Rows(); i++ {
+		vals[i] = ca.Row(i)
+	}
+
+	return
 }
 
 // Dt64Values unpacks Time values from a result.
@@ -70,13 +75,13 @@ func Dt64Values(cr proto.ColResult) (vals []time.Time) {
 
 	vals = make([]time.Time, cr.Rows())
 
-	cd, ok := cr.(*proto.ColDateTime64)
+	ca, ok := cr.(*proto.ColDateTime64)
 	if !ok {
 		return
 	}
 
-	for i := 0; i < cd.Rows(); i++ {
-		vals[i] = cd.Row(i)
+	for i := 0; i < ca.Rows(); i++ {
+		vals[i] = ca.Row(i)
 	}
 
 	return
@@ -85,33 +90,30 @@ func Dt64Values(cr proto.ColResult) (vals []time.Time) {
 // StrValues unpacks strings from a result.
 func StrValues(cr proto.ColResult) (vals []string) {
 
-	vals = []string{}
-
-	cs, ok := cr.(*proto.ColStr)
+	ca, ok := cr.(*proto.ColStr)
 	if !ok {
 		return
 	}
 
-	// Todo:fix!!! and  look at all row all the time??
-	err := cs.ForEach(func(i int, str string) error {
-		vals = append(vals, str)
-		return nil
-	})
-	if err != nil {
-		panic(err)
-		// Todo: handle
+	vals = make([]string, ca.Rows())
+
+	for i := 0; i < ca.Rows(); i++ {
+		vals[i] = ca.Row(i)
 	}
 
 	return
 }
 
 // EnumValues unpacks enumerated string values from a result.
-func EnumValues(cr proto.ColResult) []string {
+func EnumValues(cr proto.ColResult) (vals []string) {
 
-	ce, ok := cr.(*proto.ColEnum)
+	ca, ok := cr.(*proto.ColEnum)
 	if !ok {
-		return []string{}
+		return
 	}
 
-	return ce.Values
+	return ca.Values
+
+	return
+	// Todo: look at ca.Row(i) -> Enum8
 }

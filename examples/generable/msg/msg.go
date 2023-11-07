@@ -1,7 +1,9 @@
 // Package msg provides relatively simple implementations for getting and putting MsgCols.
 package msg
 
-// Todo: spell check comments w lint??
+// Todo: spell check commments w lint
+// Todo: demonstrate generattion of this code
+// Todo: look at generics from here
 
 import (
 	"context"
@@ -34,7 +36,33 @@ var (
 		"name",
 		"arr",
 	}
+	tableDdl = `(
+		ts                DateTime64(9),
+		severity_text     Enum8('INFO'=1, 'DEBUG'=2),
+		severity_number   UInt8,
+		body              String,
+		name              String,
+		arr               Array(String)
+	)`
 )
+
+// DropTable drops the msg table.
+func DropTable(ctx context.Context, client *ch.Client) (err error) {
+
+	err = client.Do(ctx, ch.Query{
+		Body: fmt.Sprintf("DROP TABLE IF EXISTS %s SYNC", tableName),
+	})
+	return
+}
+
+// UpsertTable creates the msg table if it does not exist.
+func UpsertTable(ctx context.Context, client *ch.Client, engine string) (err error) {
+
+	err = client.Do(ctx, ch.Query{
+		Body: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s\n%s ENGINE = %s", tableName, tableDdl, engine),
+	})
+	return
+}
 
 // PutColumns inserts the given messages.
 func PutColumns(ctx context.Context, client *ch.Client, chunkSize int, mcs *entity.MsgCols) (err error) {
@@ -58,7 +86,6 @@ func PutColumns(ctx context.Context, client *ch.Client, chunkSize int, mcs *enti
 			}
 
 			end := min(idx+chunkSize, mcs.Length)
-			idx += chunkSize
 
 			dataCols["ts"].(*proto.ColDateTime64).AppendArr(mcs.Timestamps[idx:end])
 			dataCols["severity_text"].(*proto.ColEnum).AppendArr(mcs.SeverityTxts[idx:end])
@@ -67,6 +94,7 @@ func PutColumns(ctx context.Context, client *ch.Client, chunkSize int, mcs *enti
 			dataCols["body"].(*proto.ColStr).AppendArr(mcs.Bodies[idx:end])
 			dataCols["arr"].(*proto.ColArr[string]).AppendArr(mcs.Tagses[idx:end])
 
+			idx += chunkSize
 			return nil
 		},
 	})

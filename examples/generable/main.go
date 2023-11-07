@@ -4,23 +4,31 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ClickHouse/ch-go"
+
 	"funhouse/entity"
 
-	"funhouse/examples/demotoo/msg"
-
-	"github.com/ClickHouse/ch-go"
+	"funhouse/examples/generable/msg"
 )
+
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
 
 func main() {
 
-	// connect with db and create table if needed
+	// connect with db and re-create table
 
 	ctx := context.Background()
 	client, err := ch.Dial(ctx, ch.Options{Address: "localhost:9000"})
 	check(err)
 
-	//err = fh.UpsertTable(ctx, msgTable)
-	//check(err)
+	err = msg.DropTable(ctx, client)
+	check(err)
+	err = msg.UpsertTable(ctx, client, "Memory")
+	check(err)
 
 	// insert some messages and get them back
 
@@ -40,11 +48,4 @@ func main() {
 	}
 
 	fmt.Printf("%s\n", msgs)
-}
-
-// handle top-level errors, nooo!
-func check(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
