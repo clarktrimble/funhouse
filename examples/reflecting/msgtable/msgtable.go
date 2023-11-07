@@ -1,3 +1,4 @@
+// Package msgtable houses details of a table for use with MsgCols.
 package msgtable
 
 import (
@@ -10,6 +11,7 @@ import (
 	"funhouse/table"
 )
 
+// MsgTable creates a table for use with MsgCols.
 func MsgTable() (tbl table.Table, err error) {
 
 	specs, err := colspec.New(&entity.MsgCols{})

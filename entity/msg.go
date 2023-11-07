@@ -1,3 +1,6 @@
+// Package entity provides entities from this projects perspective.
+// Entity is conceptualized here as that with stable dependencies; i.e.: mostly stdlib.
+// The idea is to provide a simple approach to organizing while sifting for business logic :)
 package entity
 
 import (
@@ -22,8 +25,10 @@ type Msg struct {
 	Tags      []string
 }
 
+// Msgs is a multipliciy of Msg's.
 type Msgs []Msg
 
+// String dumps json.
 func (msgs Msgs) String() string {
 
 	data, err := json.MarshalIndent(msgs, "", "  ")

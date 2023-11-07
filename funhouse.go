@@ -1,3 +1,5 @@
+// Package funhouse provides general get/put columns functionality.
+// Note!!: only a few column types are implemented, see "does not support" below.
 package funhouse
 
 import (

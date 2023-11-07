@@ -1,4 +1,5 @@
 // Package funlite provides helpers for use with lite clickhouse.
+// Note!!: only a few column types are implemented, see "...Values" methods below.
 package funlite
 
 import (
@@ -114,6 +115,5 @@ func EnumValues(cr proto.ColResult) (vals []string) {
 
 	return ca.Values
 
-	return
 	// Todo: look at ca.Row(i) -> Enum8
 }

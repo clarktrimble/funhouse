@@ -1,4 +1,4 @@
-// Package msg provides relatively simple implementations for getting and putting MsgCols.
+// Package msg provides lite getting and putting MsgCols.
 package msg
 
 // Todo: spell check commments w lint
