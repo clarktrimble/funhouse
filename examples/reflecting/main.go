@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"funhouse"
+	"funhouse/entity"
 
-	"funhouse/examples/demo/entity"
-	"funhouse/examples/demo/msgtable"
+	"funhouse/examples/reflecting/msgtable"
 )
 
 func main() {

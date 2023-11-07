@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	. "funhouse/colspec"
-	"funhouse/examples/demo/entity"
+	"funhouse/entity"
 )
 
 // Todo: check errors
@@ -26,7 +26,7 @@ var _ = Describe("ColSpec", func() {
 	BeforeEach(func() {
 		specs = ColSpec{
 			TypeName: "MsgCols",
-			PkgPath:  "funhouse/examples/demo/entity",
+			PkgPath:  "funhouse/entity",
 			ColToFld: map[string]string{
 				"ts":              "Timestamps",
 				"severity_text":   "SeverityTxts",

@@ -6,7 +6,7 @@ import (
 	"github.com/ClickHouse/ch-go/proto"
 
 	"funhouse/colspec"
-	"funhouse/examples/demo/entity"
+	"funhouse/entity"
 	"funhouse/table"
 )
 

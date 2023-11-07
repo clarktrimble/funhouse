@@ -155,7 +155,6 @@ func chunkInput(cols proto.Input, specs colspec.ColSpec, lngr Lengther, bgn, end
 
 		switch tc := cols[i].Data.(type) {
 		case *proto.ColDateTime64:
-
 			tt, ok = specs.Chunk(cols[i].Name, lngr, bgn, end).([]time.Time)
 			tc.AppendArr(tt)
 		case *proto.ColEnum:
