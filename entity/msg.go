@@ -87,6 +87,21 @@ func MakeMsgCols(size int) *MsgCols {
 	}
 }
 
+// CheckLenths for simple implementation.
+func (mcs *MsgCols) CheckLen() (err error) {
+
+	if mcs.Length != len(mcs.Timestamps) ||
+		mcs.Length != len(mcs.SeverityTxts) ||
+		mcs.Length != len(mcs.SeverityNums) ||
+		mcs.Length != len(mcs.Names) ||
+		mcs.Length != len(mcs.Bodies) ||
+		mcs.Length != len(mcs.Tagses) {
+		err = fmt.Errorf("MsgCols slices are not expected length")
+	}
+
+	return
+}
+
 // SampleMsgCols creates an example of MsgCols.
 func SampleMsgCols(count int) (mcs *MsgCols) {
 
