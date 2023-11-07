@@ -1,7 +1,7 @@
 
 # FunHouse
 
-Getting a feel for clickhouse and column-oriented data via the low-level [ch-go](https://github.com/ClickHouse/ch-go)!
+Getting a feel for ClickHouse and column-oriented data via the low-level [ch-go](https://github.com/ClickHouse/ch-go)!
 
 ## Column-Oriented You Say?
 
@@ -48,15 +48,126 @@ Yay!
 
 However, I soon began to miss the simplicity of the basic write/read code as seen in [generable/msg](https://github.com/clarktrimble/funhouse/blob/main/examples/generable/msg/msg.go).  Such code could be copypasta or generated if warranted and I like it's lack of guile.
 
-Both work, but at the moment, I'd go to prod with "generable" and the scant remains of the readme will focus there.
+Both work, but at the moment, I'd go to prod with "generable" and the scant remains of the readme will focus on it.
 
 ## What are these Msg's Anyway
 
-I started with the `ch-go` example [examples/insert/main.go](https://github.com/ClickHouse/ch-go/blob/main/examples/insert/main.go).
+I started with the `ch-go` example [examples/insert/main.go](https://github.com/ClickHouse/ch-go/blob/main/examples/insert/main.go) and `Msg` got its start there.
 
+Here's how the insert turned out:
 
+```go
+err = client.Do(ctx, ch.Query{
+	Body:  input.Into(tableName),
+	Input: input,
+	OnInput: func(ctx context.Context) error {
 
+		input.Reset()
+		if idx > mcs.Length {
+			return io.EOF
+		}
 
+		end := min(idx+chunkSize, mcs.Length)
 
+		dataCols["ts"].(*proto.ColDateTime64).AppendArr(mcs.Timestamps[idx:end])
+		dataCols["severity_text"].(*proto.ColEnum).AppendArr(mcs.SeverityTxts[idx:end])
+		dataCols["severity_number"].(*proto.ColUInt8).AppendArr(mcs.SeverityNums[idx:end])
+		dataCols["name"].(*proto.ColStr).AppendArr(mcs.Names[idx:end])
+		dataCols["body"].(*proto.ColStr).AppendArr(mcs.Bodies[idx:end])
+		dataCols["arr"].(*proto.ColArr[string]).AppendArr(mcs.Tagses[idx:end])
 
-Coming soon: more blather!!
+		idx += chunkSize
+		return nil
+	},
+})
+```
+
+`input` is built from `dataCols` using the following:
+
+```go
+func Input(names []string, byName map[string]proto.Column) (input proto.Input) {
+
+	input = proto.Input{}
+
+	for _, name := range names {
+		input = append(input, proto.InputColumn{
+			Name: name,
+			Data: byName[name],
+		})
+	}
+
+	return
+}
+```
+
+The `AppendArr` lines are a little awkward but getting the job done in a T34 kind of way..
+
+I believe, but have not tested, that returning `EOF` from the callback without having returned nil at least once, strands the remaining data.
+
+## G-g-get!!
+
+Reading the msgs back out is currently left as an exercise to the reader in `ch-go`.
+Here's how it went here:
+
+```go
+err = client.Do(ctx, ch.Query{
+	Body:   fmt.Sprintf(qSpec, tableName),
+	Result: results,
+	OnResult: func(ctx context.Context, block proto.Block) error {
+
+		mcs.Length += block.Rows
+		for _, col := range results {
+			switch col.Name {
+			case "ts":
+				mcs.Timestamps = append(mcs.Timestamps, fl.Dt64Values(col.Data)...)
+			case "severity_text":
+				mcs.SeverityTxts = append(mcs.SeverityTxts, fl.EnumValues(col.Data)...)
+			case "severity_number":
+				mcs.SeverityNums = append(mcs.SeverityNums, fl.UInt8Values(col.Data)...)
+			case "name":
+				mcs.Names = append(mcs.Names, fl.StrValues(col.Data)...)
+			case "body":
+				mcs.Bodies = append(mcs.Bodies, fl.StrValues(col.Data)...)
+			case "arr":
+				mcs.Tagses = append(mcs.Tagses, fl.StrArrayValues(col.Data)...)
+			}
+			col.Data.Reset()
+		}
+
+		return mcs.CheckLen()
+	},
+})
+```
+
+The tricky part for me was to (mostly) ignore `block` in the callback and pull the results from, ah, the `results`, in which the columns are packed up in a similar manner to `input` above.
+
+Now the awkwardness lies in the `append` lines.
+The worst is hidden away in helpers, for example:
+
+```go
+func StrValues(cr proto.ColResult) (vals []string) {
+
+	ca, ok := cr.(*proto.ColStr)
+	if !ok {
+		return
+	}
+
+	vals = make([]string, ca.Rows())
+	for i := 0; i < ca.Rows(); i++ {
+		vals[i] = ca.Row(i)
+	}
+
+	return
+}
+```
+
+`CheckLen` is indented to catch an assertion failure in a helper.
+
+Oh, and I'm not sure if `Reset`ing the columns is needed, but doesn't seem to hurt.
+
+## Up Next
+
+ - look at performance
+ - can AppendArr, Row, Rows commonalities be exploited for simpler code?
+ - explore the world of indexing in ch
+

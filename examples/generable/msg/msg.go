@@ -131,12 +131,7 @@ func GetColumns(ctx context.Context, client *ch.Client, qSpec string) (mcs *enti
 				col.Data.Reset()
 			}
 
-			err = mcs.CheckLen()
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return mcs.CheckLen()
 		},
 	})
 	return

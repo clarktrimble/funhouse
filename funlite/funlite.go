@@ -97,7 +97,6 @@ func StrValues(cr proto.ColResult) (vals []string) {
 	}
 
 	vals = make([]string, ca.Rows())
-
 	for i := 0; i < ca.Rows(); i++ {
 		vals[i] = ca.Row(i)
 	}
