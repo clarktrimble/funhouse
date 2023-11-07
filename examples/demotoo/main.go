@@ -7,7 +7,7 @@ import (
 	"funhouse"
 	"funhouse/entity"
 
-	"funhouse/examples/demo/msgtable"
+	"funhouse/examples/demotoo/msgtable"
 )
 
 func main() {
@@ -31,8 +31,14 @@ func main() {
 
 	//err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
 	//check(err)
+	//func PutMsgColumns(ctx context.Context, fh *funhouse.FunHouse, tbl table.Table, mcs *entity.MsgCols) (err error) {
+	err = msgtable.PutMsgColumns(ctx, fh, msgTable, entity.SampleMsgCols(20))
+	check(err)
 
-	err = fh.GetColumns(ctx, "select * from %s", msgTable, mcs)
+	//err = fh.GetColumns(ctx, "select * from %s", msgTable, mcs)
+	//func GetMsgColumns(ctx context.Context, fh *funhouse.FunHouse, tbl table.Table) (mcs *entity.MsgCols, err error) {
+
+	mcs, err = msgtable.GetMsgColumns(ctx, fh, msgTable)
 	check(err)
 
 	// convert to non-column messages and print

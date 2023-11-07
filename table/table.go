@@ -18,6 +18,19 @@ type Col struct {
 	Data proto.Column
 }
 
+func (tbl Table) GetData(name string) proto.Column {
+
+	// Todo: lookup!! via New prolly
+	for _, col := range tbl.Cols {
+
+		if name == col.Name {
+			return col.Data
+		}
+	}
+
+	return nil
+}
+
 func (tbl Table) Input() (input proto.Input) {
 
 	input = proto.Input{}
