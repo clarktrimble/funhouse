@@ -116,17 +116,17 @@ func GetColumns(ctx context.Context, client *ch.Client, qSpec string) (mcs *enti
 			for _, col := range results {
 				switch col.Name {
 				case "ts":
-					mcs.Timestamps = append(mcs.Timestamps, fl.Dt64Values(col.Data)...)
+					fl.Append(&mcs.Timestamps, col.Data.(*proto.ColDateTime64))
 				case "severity_text":
-					mcs.SeverityTxts = append(mcs.SeverityTxts, fl.EnumValues(col.Data)...)
+					fl.Append(&mcs.SeverityTxts, col.Data.(*proto.ColEnum))
 				case "severity_number":
-					mcs.SeverityNums = append(mcs.SeverityNums, fl.UInt8Values(col.Data)...)
+					fl.Append(&mcs.SeverityNums, col.Data.(*proto.ColUInt8))
 				case "name":
-					mcs.Names = append(mcs.Names, fl.StrValues(col.Data)...)
+					fl.Append(&mcs.Names, col.Data.(*proto.ColStr))
 				case "body":
-					mcs.Bodies = append(mcs.Bodies, fl.StrValues(col.Data)...)
+					fl.Append(&mcs.Bodies, col.Data.(*proto.ColStr))
 				case "arr":
-					mcs.Tagses = append(mcs.Tagses, fl.StrArrayValues(col.Data)...)
+					fl.Append(&mcs.Tagses, col.Data.(*proto.ColArr[string]))
 				}
 				col.Data.Reset()
 			}

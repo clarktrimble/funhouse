@@ -3,8 +3,6 @@
 package funlite
 
 import (
-	"time"
-
 	"github.com/ClickHouse/ch-go/proto"
 )
 
@@ -39,80 +37,15 @@ func Results(names []string, byName map[string]proto.Column) (results proto.Resu
 	return
 }
 
-// StrArrayValues unpacks slices of strings from a result.
-func StrArrayValues(cr proto.ColResult) (vals [][]string) {
+// type Rower[T any] interface {
+// Rows() int
+// Row(i int) T
+// }
 
-	ca, ok := cr.(*proto.ColArr[string])
-	if !ok {
-		return
+// Append appends to a generic slice.
+func Append[T any](slice *[]T, rr proto.ColumnOf[T]) {
+
+	for i := 0; i < rr.Rows(); i++ {
+		*slice = append(*slice, rr.Row(i))
 	}
-
-	vals = make([][]string, cr.Rows())
-	for i := 0; i < ca.Rows(); i++ {
-		vals[i] = ca.Row(i)
-	}
-
-	return
-}
-
-// UInt8Values unpacks uint8's from a result.
-func UInt8Values(cr proto.ColResult) (vals []uint8) {
-
-	ca, ok := cr.(*proto.ColUInt8)
-	if !ok {
-		return
-	}
-
-	vals = make([]uint8, ca.Rows())
-	for i := 0; i < ca.Rows(); i++ {
-		vals[i] = ca.Row(i)
-	}
-
-	return
-}
-
-// Dt64Values unpacks Time values from a result.
-func Dt64Values(cr proto.ColResult) (vals []time.Time) {
-
-	vals = make([]time.Time, cr.Rows())
-
-	ca, ok := cr.(*proto.ColDateTime64)
-	if !ok {
-		return
-	}
-
-	for i := 0; i < ca.Rows(); i++ {
-		vals[i] = ca.Row(i)
-	}
-
-	return
-}
-
-// StrValues unpacks strings from a result.
-func StrValues(cr proto.ColResult) (vals []string) {
-
-	ca, ok := cr.(*proto.ColStr)
-	if !ok {
-		return
-	}
-
-	vals = make([]string, ca.Rows())
-	for i := 0; i < ca.Rows(); i++ {
-		vals[i] = ca.Row(i)
-	}
-
-	return
-}
-
-// EnumValues unpacks enumerated string values from a result.
-func EnumValues(cr proto.ColResult) (vals []string) {
-
-	ca, ok := cr.(*proto.ColEnum)
-	if !ok {
-		return
-	}
-
-	return ca.Values
-
-	// Todo: look at ca.Row(i) -> Enum8
 }
