@@ -110,58 +110,47 @@ Reading the msgs back out is currently left as an exercise to the reader in `ch-
 Here's how it went here:
 
 ```go
-err = client.Do(ctx, ch.Query{
-	Body:   fmt.Sprintf(qSpec, tableName),
-	Result: results,
-	OnResult: func(ctx context.Context, block proto.Block) error {
+  err = client.Do(ctx, ch.Query{
+    Body:   fmt.Sprintf(qSpec, tableName),
+    Result: results,
+    OnResult: func(ctx context.Context, block proto.Block) error {
 
-		mcs.Length += block.Rows
-		for _, col := range results {
-			switch col.Name {
-			case "ts":
-				mcs.Timestamps = append(mcs.Timestamps, fl.Dt64Values(col.Data)...)
-			case "severity_text":
-				mcs.SeverityTxts = append(mcs.SeverityTxts, fl.EnumValues(col.Data)...)
-			case "severity_number":
-				mcs.SeverityNums = append(mcs.SeverityNums, fl.UInt8Values(col.Data)...)
-			case "name":
-				mcs.Names = append(mcs.Names, fl.StrValues(col.Data)...)
-			case "body":
-				mcs.Bodies = append(mcs.Bodies, fl.StrValues(col.Data)...)
-			case "arr":
-				mcs.Tagses = append(mcs.Tagses, fl.StrArrayValues(col.Data)...)
-			}
-			col.Data.Reset()
-		}
+      mcs.Length += block.Rows
+      for _, col := range results {
+        switch col.Name {
+        case "ts":
+          fl.Append(&mcs.Timestamps, col.Data.(*proto.ColDateTime64))
+        case "severity_text":
+          fl.Append(&mcs.SeverityTxts, col.Data.(*proto.ColEnum))
+        case "severity_number":
+          fl.Append(&mcs.SeverityNums, col.Data.(*proto.ColUInt8))
+        case "name":
+          fl.Append(&mcs.Names, col.Data.(*proto.ColStr))
+        case "body":
+          fl.Append(&mcs.Bodies, col.Data.(*proto.ColStr))
+        case "arr":
+          fl.Append(&mcs.Tagses, col.Data.(*proto.ColArr[string]))
+        }
+        col.Data.Reset()
+      }
 
-		return mcs.CheckLen()
-	},
-})
+      return mcs.CheckLen()
+    },
+  })
 ```
 
-The tricky part for me was to (mostly) ignore `block` in the callback and pull the results from, ah, the `results`, in which the columns are packed up in a similar manner to `input` above.
+The tricky part for me was to (mostly) ignore `block` in the callback and pull the results from, ah, `results`, in which the columns are packed up in a similar manner to `input` above.
 
-Now the awkwardness lies in the `append` lines.
-The worst is hidden away in helpers, for example:
+Not too horrid thanks to a generic `Append`:
 
 ```go
-func StrValues(cr proto.ColResult) (vals []string) {
+func Append[T any](slice *[]T, rr proto.ColumnOf[T]) {
 
-	ca, ok := cr.(*proto.ColStr)
-	if !ok {
-		return
-	}
-
-	vals = make([]string, ca.Rows())
-	for i := 0; i < ca.Rows(); i++ {
-		vals[i] = ca.Row(i)
-	}
-
-	return
+  for i := 0; i < rr.Rows(); i++ {
+    *slice = append(*slice, rr.Row(i))
+  }
 }
 ```
-
-`CheckLen` is indented to catch an assertion failure in a helper.
 
 Oh, and I'm not sure if `Reset`ing the columns is needed, but doesn't seem to hurt.
 
