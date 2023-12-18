@@ -75,8 +75,6 @@ Here's how my take on insert turned out:
 
 Clearly this code is irrevocably bound to the message type, but has a virtuous simplicity and of course could be generated if warranted.
 
-MsgTable fields (i.e.: `mt.Ts`) are the same as used to build `input` with:
-
 ## Get!!
 
 Reading the msgs back out is currently left as an exercise to the reader in `ch-go`.
@@ -113,7 +111,7 @@ Shockingly, it's somewhat similar to the above:
   })
 ```
 
-The tricky part for me was to (mostly) ignore `block` in the callback and pull the results from, ah, `results`, in which the columns are packed up in a similar manner to `input` above.
+The tricky part for me was to (mostly) ignore `block` in the callback and pull the results from `results`.
 
 Not too horrid thanks to a generic `Append`:
 
@@ -144,16 +142,12 @@ type MsgTable struct {
 }
 ```
 
-A helper, um, helps transform this to `input`:
+A helper transforms this to `input`:
 
 ```go
 func Input(cnr ColNamer) (input proto.Input, err error) {
 
-  cols, names := cnr.ColNames()
-  if len(cols) != len(names) {
-    err = fmt.Errorf("unequal number of columns and names")
-    return
-  }
+  // ... check that len's are equal
 
   input = proto.Input{}
   for i, name := range names {
@@ -167,9 +161,9 @@ func Input(cnr ColNamer) (input proto.Input, err error) {
 }
 ```
 
-With a quite similar helper for `results`.
+With a similar helper for `results`.
 
-_A-and_ we can still refer to the concrete types in `OnInput` and `OnResult` without unsightly assertions via MsgTable instance!
+_A-and_ we can still refer to the concrete types in `OnInput` and `OnResult` without unsightly assertions via the MsgTable instance!
 
 ## The other implementation(s)
 
