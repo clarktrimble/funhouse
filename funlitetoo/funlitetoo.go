@@ -1,4 +1,4 @@
-// Package funlitetoo provides ch-go helpers reusable across types.
+// Package funlitetoo provides a ClickHouse client wrapper for working with tables.
 package funlitetoo
 
 import (
@@ -10,19 +10,120 @@ import (
 	"github.com/ClickHouse/ch-go/proto"
 )
 
-// ColNamer specifies an interface for getting columns and their names.
+// Tabler specifies an interface for getting columns and their names.
 //
 // Columns and names must be of the same length and in the same order.
-type ColNamer interface {
+type Tabler interface {
+	TableName() (name string)
+	Ddl() (name string)
+	Total() (count int)
+	CheckLen() (err error)
 	ColNames() (cols []proto.Column, names []string)
-	Stash(count int, results proto.Results) (err error)
-	Destash(bgn, end int)
+	AppendFrom(count int, results proto.Results) (err error)
+	AppendTo(bgn, end int)
 }
 
-// Input creates an Input suitable for putting data via ch-go.
-func Input(cnr ColNamer) (input proto.Input, err error) {
+// Fh is a funhouse client.
+type Fh struct {
+	Client *ch.Client
+}
 
-	cols, names := cnr.ColNames()
+// DropTable drops the table with a given name.
+func (fh *Fh) DropTable(ctx context.Context, tbr Tabler) (err error) {
+
+	err = fh.Client.Do(ctx, ch.Query{
+		Body: fmt.Sprintf("DROP TABLE IF EXISTS %s SYNC", tbr.TableName()),
+	})
+	return
+}
+
+// UpsertTable creates the table with a given name if it does not exist.
+func (fh *Fh) UpsertTable(ctx context.Context, engine string, tbr Tabler) (err error) {
+
+	err = fh.Client.Do(ctx, ch.Query{
+		Body: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s\n%s ENGINE = %s", tbr.TableName(), tbr.Ddl(), engine),
+	})
+	return
+}
+
+// GetResults gets all records from a table.
+func (fh *Fh) GetResults(ctx context.Context, tbr Tabler) (err error) {
+
+	results, err := results(tbr)
+	if err != nil {
+		return
+	}
+
+	// query hardcoded here as ch-go will error with "raw block: target: 6 (columns) != 2 (target)"
+	// when selecting only two cols in the query and yet try to use "results" for all 6
+	//
+	// might be nice, certainly more col-oriented,to get one column at a time and merge later?
+	// another approach would be to make "results" helper aware of select fields
+	//
+	// and of course would be straight-forward to pass in a "where" clause if needed
+
+	err = fh.Client.Do(ctx, ch.Query{
+		Body:   fmt.Sprintf("select * from %s", tbr.TableName()),
+		Result: results,
+		OnResult: func(ctx context.Context, block proto.Block) error {
+
+			return tbr.AppendFrom(block.Rows, results)
+		},
+	})
+	return
+}
+
+// PutInput puts records from Tablers' data into its table.
+func (fh *Fh) PutInput(ctx context.Context, chunkSize int, tbr Tabler) (err error) {
+
+	// Todo: check that all's well when chunk is bigger than total
+
+	err = tbr.CheckLen()
+	if err != nil {
+		return
+	}
+
+	var idx int
+	total := tbr.Total()
+
+	input, err := input(tbr)
+	if err != nil {
+		return
+	}
+
+	err = fh.Client.Do(ctx, ch.Query{
+		Body:  input.Into(tbr.TableName()),
+		Input: input,
+		OnInput: func(ctx context.Context) error {
+
+			input.Reset()
+			if idx > total {
+				return io.EOF
+			}
+			end := min(idx+chunkSize, total)
+
+			tbr.AppendTo(idx, end)
+
+			idx += chunkSize
+			return nil
+		},
+	})
+	return
+}
+
+// Append is a helper that appends to a slice from a correspondingly typed column.
+func Append[T any](slice *[]T, col proto.ColumnOf[T]) {
+
+	for i := 0; i < col.Rows(); i++ {
+		*slice = append(*slice, col.Row(i))
+	}
+}
+
+// unexported
+
+func input(tbr Tabler) (input proto.Input, err error) {
+
+	cols, names := tbr.ColNames()
 	if len(cols) != len(names) {
 		err = fmt.Errorf("unequal number of columns and names")
 		return
@@ -39,10 +140,9 @@ func Input(cnr ColNamer) (input proto.Input, err error) {
 	return
 }
 
-// Results creates a Results suidable for getting data via ch-go.
-func Results(cnr ColNamer) (results proto.Results, err error) {
+func results(tbr Tabler) (results proto.Results, err error) {
 
-	cols, names := cnr.ColNames()
+	cols, names := tbr.ColNames()
 	if len(cols) != len(names) {
 		err = fmt.Errorf("unequal number of columns and names")
 		return
@@ -57,103 +157,5 @@ func Results(cnr ColNamer) (results proto.Results, err error) {
 		})
 	}
 
-	return
-}
-
-// DropTable drops the table with a given name.
-func DropTable(ctx context.Context, client *ch.Client, name string) (err error) {
-
-	err = client.Do(ctx, ch.Query{
-		Body: fmt.Sprintf("DROP TABLE IF EXISTS %s SYNC", name),
-	})
-	return
-}
-
-// UpsertTable creates the table with a given name if it does not exist.
-func UpsertTable(ctx context.Context, client *ch.Client, name, ddl, engine string) (err error) {
-
-	err = client.Do(ctx, ch.Query{
-		Body: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s\n%s ENGINE = %s", name, ddl, engine),
-	})
-	return
-}
-
-// Append appends to a slice from a correspondingly typed column.
-func Append[T any](slice *[]T, col proto.ColumnOf[T]) {
-
-	for i := 0; i < col.Rows(); i++ {
-		*slice = append(*slice, col.Row(i))
-	}
-}
-
-type Fh struct {
-	Client *ch.Client
-}
-
-func (fh *Fh) GetResults(ctx context.Context, query string, cnr ColNamer) (err error) {
-
-	results, err := Results(cnr)
-	if err != nil {
-		return
-	}
-
-	err = fh.Client.Do(ctx, ch.Query{
-		Body:   query,
-		Result: results,
-		OnResult: func(ctx context.Context, block proto.Block) error {
-
-			return cnr.Stash(block.Rows, results)
-		},
-	})
-	return
-}
-
-func (fh *Fh) PutInput(ctx context.Context, chunkSize, total int, table string, cnr ColNamer) (err error) {
-
-	// Todo: get table name, total from cnr?
-
-	var idx int
-
-	//err = mcs.CheckLen()
-	//if err != nil {
-	//return
-	//}
-
-	input, err := Input(cnr)
-	if err != nil {
-		return
-	}
-
-	err = fh.Client.Do(ctx, ch.Query{
-		Body:  input.Into(table),
-		Input: input,
-		OnInput: func(ctx context.Context) error {
-
-			input.Reset()
-			//if idx > mcs.Length {
-			if idx > total {
-				return io.EOF
-			}
-
-			//end := min(idx+chunkSize, mcs.Length)
-			end := min(idx+chunkSize, total)
-
-			// MsgTable fields (i.e.: mt.Ts) are the same as provided with "Input: input"
-
-			cnr.Destash(idx, end)
-			/*
-				mt.Ts.AppendArr(mcs.Timestamps[idx:end])
-				mt.SeverityTxt.AppendArr(mcs.SeverityTxts[idx:end])
-				mt.SeverityNum.AppendArr(mcs.SeverityNums[idx:end])
-				mt.Body.AppendArr(mcs.Bodies[idx:end])
-				mt.Name.AppendArr(mcs.Names[idx:end])
-				mt.Arr.AppendArr(mcs.Tagses[idx:end])
-			*/
-
-			idx += chunkSize
-			// Todo: check that all's well when chunk is bigger than total
-			return nil
-		},
-	})
 	return
 }
