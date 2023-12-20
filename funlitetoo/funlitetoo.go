@@ -4,6 +4,7 @@ package funlitetoo
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/ClickHouse/ch-go"
 	"github.com/ClickHouse/ch-go/proto"
@@ -14,6 +15,8 @@ import (
 // Columns and names must be of the same length and in the same order.
 type ColNamer interface {
 	ColNames() (cols []proto.Column, names []string)
+	Stash(count int, results proto.Results) (err error)
+	Destash(bgn, end int)
 }
 
 // Input creates an Input suitable for putting data via ch-go.
@@ -81,4 +84,76 @@ func Append[T any](slice *[]T, col proto.ColumnOf[T]) {
 	for i := 0; i < col.Rows(); i++ {
 		*slice = append(*slice, col.Row(i))
 	}
+}
+
+type Fh struct {
+	Client *ch.Client
+}
+
+func (fh *Fh) GetResults(ctx context.Context, query string, cnr ColNamer) (err error) {
+
+	results, err := Results(cnr)
+	if err != nil {
+		return
+	}
+
+	err = fh.Client.Do(ctx, ch.Query{
+		Body:   query,
+		Result: results,
+		OnResult: func(ctx context.Context, block proto.Block) error {
+
+			return cnr.Stash(block.Rows, results)
+		},
+	})
+	return
+}
+
+func (fh *Fh) PutInput(ctx context.Context, chunkSize, total int, table string, cnr ColNamer) (err error) {
+
+	// Todo: get table name, total from cnr?
+
+	var idx int
+
+	//err = mcs.CheckLen()
+	//if err != nil {
+	//return
+	//}
+
+	input, err := Input(cnr)
+	if err != nil {
+		return
+	}
+
+	err = fh.Client.Do(ctx, ch.Query{
+		Body:  input.Into(table),
+		Input: input,
+		OnInput: func(ctx context.Context) error {
+
+			input.Reset()
+			//if idx > mcs.Length {
+			if idx > total {
+				return io.EOF
+			}
+
+			//end := min(idx+chunkSize, mcs.Length)
+			end := min(idx+chunkSize, total)
+
+			// MsgTable fields (i.e.: mt.Ts) are the same as provided with "Input: input"
+
+			cnr.Destash(idx, end)
+			/*
+				mt.Ts.AppendArr(mcs.Timestamps[idx:end])
+				mt.SeverityTxt.AppendArr(mcs.SeverityTxts[idx:end])
+				mt.SeverityNum.AppendArr(mcs.SeverityNums[idx:end])
+				mt.Body.AppendArr(mcs.Bodies[idx:end])
+				mt.Name.AppendArr(mcs.Names[idx:end])
+				mt.Arr.AppendArr(mcs.Tagses[idx:end])
+			*/
+
+			idx += chunkSize
+			// Todo: check that all's well when chunk is bigger than total
+			return nil
+		},
+	})
+	return
 }

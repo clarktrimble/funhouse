@@ -130,6 +130,16 @@ func (mt *MsgTable) PutColumns(ctx context.Context, chunkSize int, mcs *entity.M
 	return
 }
 
+func (mt *MsgTable) Destash(idx, end int) {
+
+	mt.Ts.AppendArr(mt.Mcs.Timestamps[idx:end])
+	mt.SeverityTxt.AppendArr(mt.Mcs.SeverityTxts[idx:end])
+	mt.SeverityNum.AppendArr(mt.Mcs.SeverityNums[idx:end])
+	mt.Body.AppendArr(mt.Mcs.Bodies[idx:end])
+	mt.Name.AppendArr(mt.Mcs.Names[idx:end])
+	mt.Arr.AppendArr(mt.Mcs.Tagses[idx:end])
+}
+
 func (mt *MsgTable) Stash(count int, results proto.Results) (err error) {
 
 	mt.Mcs.Length += count
