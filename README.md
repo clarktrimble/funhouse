@@ -48,67 +48,89 @@ I started with the `ch-go` example [examples/insert/main.go](https://github.com/
 Here's how my take on insert turned out:
 
 ```go
-  err = mt.Client.Do(ctx, ch.Query{
-    Body:  input.Into(mt.Table),
+func (fh *Fh) PutInput(ctx context.Context, chunkSize int, tbr Tabler) (err error) {
+  var idx int
+  total := tbr.Total()
+
+  input, err := input(tbr)
+  if err != nil {
+    return
+  }
+
+  err = fh.Client.Do(ctx, ch.Query{
+    Body:  input.Into(tbr.TableName()),
     Input: input,
     OnInput: func(ctx context.Context) error {
-
       input.Reset()
-      if idx > mcs.Length {
+      if idx > total {
         return io.EOF
       }
+      end := min(idx+chunkSize, total)
 
-      end := min(idx+chunkSize, mcs.Length)
-
-      mt.Ts.AppendArr(mcs.Timestamps[idx:end])
-      mt.SeverityTxt.AppendArr(mcs.SeverityTxts[idx:end])
-      mt.SeverityNum.AppendArr(mcs.SeverityNums[idx:end])
-      mt.Body.AppendArr(mcs.Bodies[idx:end])
-      mt.Name.AppendArr(mcs.Names[idx:end])
-      mt.Arr.AppendArr(mcs.Tagses[idx:end])
+      tbr.AppendTo(idx, end)
 
       idx += chunkSize
       return nil
     },
   })
+  return
+}
 ```
 
-Clearly this code is irrevocably bound to the message type, but has a virtuous simplicity and of course could be generated if warranted.
+```go
+func (mt *MsgTable) AppendTo(idx, end int) {
+  mt.Cols.Ts.AppendArr(mt.Data.Timestamps[idx:end])
+  mt.Cols.SeverityTxt.AppendArr(mt.Data.SeverityTxts[idx:end])
+  // ... the rest of the cols
+}
+```
+
+`MsgTable` implements a `Tabler` interface, letting it focus on messages particulars, while the `funlite` package provides reusable ClickHouse'isms.
+
+Concrete column types in `MsgTable` hold it all together. Funlite's `input` helper references them when creating `input` for use in `Do`.  You'll see something quite similar in `PutInput` just below.
 
 ## Get!!
 
 Reading the msgs back out is currently left as an exercise to the reader in `ch-go`.
 
-Shockingly, it's somewhat similar to the above:
+Shockingly, it's somewhat similar to `PutInput` above:
 
 ```go
-  err = mt.Client.Do(ctx, ch.Query{
-    Body:   fmt.Sprintf("select * from %s", mt.Table),
+func (fh *Fh) GetResults(ctx context.Context, tbr Tabler) (err error) {
+  results, err := results(tbr)
+  if err != nil {
+    return
+  }
+
+  err = fh.Client.Do(ctx, ch.Query{
+    Body:   fmt.Sprintf("select * from %s", tbr.TableName()),
     Result: results,
     OnResult: func(ctx context.Context, block proto.Block) error {
 
-      mcs.Length += block.Rows
-      for _, col := range results {
-        switch col.Name {
-        case "ts":
-          flt.Append(&mcs.Timestamps, mt.Ts)
-        case "severity_text":
-          flt.Append(&mcs.SeverityTxts, mt.SeverityTxt)
-        case "severity_number":
-          flt.Append(&mcs.SeverityNums, mt.SeverityNum)
-        case "body":
-          flt.Append(&mcs.Bodies, mt.Body)
-        case "name":
-          flt.Append(&mcs.Names, mt.Name)
-        case "arr":
-          flt.Append(&mcs.Tagses, mt.Arr)
-        }
-        col.Data.Reset()
-      }
-
-      return mcs.CheckLen()
+      return tbr.AppendFrom(block.Rows, results)
     },
   })
+  return
+}
+```
+
+```go
+func (mt *MsgTable) AppendFrom(count int, results proto.Results) (err error) {
+
+  mt.Data.Length += count
+  for _, col := range results {
+    switch col.Name {
+    case "ts":
+      flt.Append(&mt.Data.Timestamps, mt.Cols.Ts)
+    case "severity_text":
+      flt.Append(&mt.Data.SeverityTxts, mt.Cols.SeverityTxt)
+    // ... the rest of the cols
+    }
+    col.Data.Reset()
+  }
+
+  return mt.Data.CheckLen()
+}
 ```
 
 The tricky part for me was to (mostly) ignore `block` in the callback and pull the results from `results`.
@@ -131,8 +153,7 @@ I'm not sure if `Reset`ing the columns is needed when reading, but doesn't seem 
 Above we see "put" sending data via an enclosed `input` and "get" reading via an enclosed `results`, both of which refer to concrete types established in MsgTable:
 
 ```go
-type MsgTable struct {
-  ...
+type Cols struct {
   Ts          *proto.ColDateTime64
   SeverityTxt *proto.ColEnum
   SeverityNum *proto.ColUInt8
@@ -140,13 +161,16 @@ type MsgTable struct {
   Name        *proto.ColStr
   Arr         *proto.ColArr[string]
 }
+type MsgTable struct {
+  // ...
+  Cols   Cols
+}
 ```
 
 A helper transforms this to `input`:
 
 ```go
-func Input(cnr ColNamer) (input proto.Input, err error) {
-
+func input(cnr ColNamer) (input proto.Input, err error) {
   // ... check that len's are equal
 
   input = proto.Input{}
@@ -163,7 +187,7 @@ func Input(cnr ColNamer) (input proto.Input, err error) {
 
 With a similar helper for `results`.
 
-_A-and_ we can still refer to the concrete types in `OnInput` and `OnResult` without unsightly assertions via the MsgTable instance!
+_A-and_ we can refer to the concrete types in `OnInput` and `OnResult` without unsightly assertions!
 
 ## The other implementation(s)
 
@@ -180,6 +204,5 @@ I'm not quite ready to trash it yet.
 
  - find a better place to park other imp's
  - look at performance
- - somehow extract "chunking" logics from type-specific codeses
  - explore the world of indexing in ch
 
