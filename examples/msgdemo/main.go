@@ -8,7 +8,7 @@ import (
 
 	"funhouse/entity"
 	"funhouse/examples/msgdemo/msgtable"
-	flt "funhouse/funlitetoo"
+	flt "funhouse/funlite"
 )
 
 func check(err error) {
@@ -25,22 +25,26 @@ func main() {
 	client, err := ch.Dial(ctx, ch.Options{Address: "localhost:9000"})
 	check(err)
 
-	tbl := msgtable.New("test_table_too", client)
+	fh := flt.Fh{Client: client}
+	tbl := msgtable.New("test_table_too")
 
-	err = flt.DropTable(ctx, client, tbl.Table)
+	err = fh.DropTable(ctx, tbl)
 	check(err)
-	err = flt.UpsertTable(ctx, client, tbl.Table, msgtable.Ddl, "Memory")
+	err = fh.UpsertTable(ctx, "Memory", tbl)
 	check(err)
 
 	// put some messages to the table and get them back
 
-	err = tbl.PutColumns(ctx, 9, entity.SampleMsgCols(20))
-	check(err)
+	tbl.Data = entity.SampleMsgCols(20)
+	err = fh.PutInput(ctx, 9, tbl)
 
-	mcs, err := tbl.GetColumns(ctx)
+	tbl.Data = &entity.MsgCols{}
+	err = fh.GetResults(ctx, tbl)
 	check(err)
 
 	// convert to non-columnar messages and print
+
+	mcs := tbl.Data
 
 	msgs := make(entity.Msgs, mcs.Length)
 	for i := 0; i < mcs.Length; i++ {

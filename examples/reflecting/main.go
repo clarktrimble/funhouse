@@ -32,6 +32,8 @@ func main() {
 	err = fh.PutColumns(ctx, msgTable, entity.SampleMsgCols(30))
 	check(err)
 
+	// Todo: this is bugged somewhere, getting 3 sets of msgs :(
+
 	err = fh.GetColumns(ctx, "select * from %s", msgTable, mcs)
 	check(err)
 
