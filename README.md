@@ -170,8 +170,8 @@ type MsgTable struct {
 A helper transforms this to `input`:
 
 ```go
-func input(cnr ColNamer) (input proto.Input, err error) {
-  // ... check that len's are equal
+func input(tbr Tabler) (input proto.Input, err error) {
+  cols, names := tbr.ColNames()
 
   input = proto.Input{}
   for i, name := range names {
