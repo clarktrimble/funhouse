@@ -1,26 +1,18 @@
-// Package msgtable provides simple if repetitive code dedicated to
-// putting and getting entity.MsgCols to and from a ClickHouse table.
-//
-// I still yearn to pull "chunking" code into something reusable across types,
-// but this one is a solid step forward. :)
+// Package msgtable provides specifics for putting and getting entity.MsgCols
+// to and from a ClickHouse table by implementing Tabler from the funlitetoo pkg.
 package msgtable
 
 import (
-	"context"
-	"fmt"
-	"io"
 	"time"
 
-	"github.com/ClickHouse/ch-go"
 	"github.com/ClickHouse/ch-go/proto"
 
 	"funhouse/entity"
-	flt "funhouse/funlitetoo"
+	flt "funhouse/funlite"
 )
 
 const (
-	// Ddl can be used to create the table in ClickHouse.
-	Ddl = `(
+	ddl = `(
 		ts                DateTime64(9),
 		severity_text     Enum8('INFO'=1, 'DEBUG'=2),
 		severity_number   UInt8,
@@ -30,43 +22,76 @@ const (
 	)`
 )
 
-// MsgTable represents a table for msg's.
-type MsgTable struct {
-	Table       string
-	Client      *ch.Client
+// Cols are columns typed corresponding to those in the table.
+type Cols struct {
 	Ts          *proto.ColDateTime64
 	SeverityTxt *proto.ColEnum
 	SeverityNum *proto.ColUInt8
 	Body        *proto.ColStr
 	Name        *proto.ColStr
 	Arr         *proto.ColArr[string]
-	// Todo: think about putting cols into sub-struct
+}
+
+// MsgTable represents a table for msg's.
+//
+// Instances are very much not safe for concurrent use.
+// Cols and Data are caught up in the details of getting from or putting to a table.
+type MsgTable struct {
+	Name string
+	Cols Cols
+	Data *entity.MsgCols
 }
 
 // New creates a MsgTable.
-func New(name string, client *ch.Client) *MsgTable {
+func New(name string) *MsgTable {
 	return &MsgTable{
-		Table:       name,
-		Client:      client,
-		Ts:          (&proto.ColDateTime64{}).WithLocation(time.UTC).WithPrecision(proto.PrecisionNano),
-		SeverityTxt: &proto.ColEnum{},
-		SeverityNum: &proto.ColUInt8{},
-		Body:        &proto.ColStr{},
-		Name:        &proto.ColStr{},
-		Arr:         (&proto.ColStr{}).Array(),
+		Name: name,
+		Cols: Cols{
+			Ts:          (&proto.ColDateTime64{}).WithLocation(time.UTC).WithPrecision(proto.PrecisionNano),
+			SeverityTxt: &proto.ColEnum{},
+			SeverityNum: &proto.ColUInt8{},
+			Body:        &proto.ColStr{},
+			Name:        &proto.ColStr{},
+			Arr:         (&proto.ColStr{}).Array(),
+		},
+		Data: &entity.MsgCols{},
 	}
+}
+
+// TableName returns the name of the table.
+func (mt *MsgTable) TableName() string {
+
+	return mt.Name
+}
+
+// Total returns the total number of msg's in Data.
+func (mt *MsgTable) Total() int {
+
+	return mt.Data.Length
+}
+
+// CheckLen checks that all column slices in Data are of the same length.
+func (mt *MsgTable) CheckLen() error {
+
+	return mt.Data.CheckLen()
+}
+
+// Ddl returns ddl to create the table in ClickHouse.
+func (mt *MsgTable) Ddl() string {
+
+	return ddl
 }
 
 // ColNames returns cols and their names suitiable for constructing Input or Results.
 func (mt *MsgTable) ColNames() (cols []proto.Column, names []string) {
 
 	cols = []proto.Column{
-		mt.Ts,
-		mt.SeverityTxt,
-		mt.SeverityNum,
-		mt.Body,
-		mt.Name,
-		mt.Arr,
+		mt.Cols.Ts,
+		mt.Cols.SeverityTxt,
+		mt.Cols.SeverityNum,
+		mt.Cols.Body,
+		mt.Cols.Name,
+		mt.Cols.Arr,
 	}
 
 	names = []string{
@@ -81,96 +106,38 @@ func (mt *MsgTable) ColNames() (cols []proto.Column, names []string) {
 	return
 }
 
-// PutColumns inserts the given messages.
-func (mt *MsgTable) PutColumns(ctx context.Context, chunkSize int, mcs *entity.MsgCols) (err error) {
+// AppendTo appends from Data to Cols (input to table)
+func (mt *MsgTable) AppendTo(idx, end int) {
 
-	var idx int
-
-	err = mcs.CheckLen()
-	if err != nil {
-		return
-	}
-
-	input, err := flt.Input(mt)
-	if err != nil {
-		return
-	}
-
-	err = mt.Client.Do(ctx, ch.Query{
-		Body:  input.Into(mt.Table),
-		Input: input,
-		OnInput: func(ctx context.Context) error {
-
-			input.Reset()
-			if idx > mcs.Length {
-				return io.EOF
-			}
-
-			end := min(idx+chunkSize, mcs.Length)
-
-			// MsgTable fields (i.e.: mt.Ts) are the same as provided with "Input: input"
-
-			mt.Ts.AppendArr(mcs.Timestamps[idx:end])
-			mt.SeverityTxt.AppendArr(mcs.SeverityTxts[idx:end])
-			mt.SeverityNum.AppendArr(mcs.SeverityNums[idx:end])
-			mt.Body.AppendArr(mcs.Bodies[idx:end])
-			mt.Name.AppendArr(mcs.Names[idx:end])
-			mt.Arr.AppendArr(mcs.Tagses[idx:end])
-
-			idx += chunkSize
-			// Todo: check that all's well when chunk is bigger than total
-			return nil
-		},
-	})
-	return
+	mt.Cols.Ts.AppendArr(mt.Data.Timestamps[idx:end])
+	mt.Cols.SeverityTxt.AppendArr(mt.Data.SeverityTxts[idx:end])
+	mt.Cols.SeverityNum.AppendArr(mt.Data.SeverityNums[idx:end])
+	mt.Cols.Body.AppendArr(mt.Data.Bodies[idx:end])
+	mt.Cols.Name.AppendArr(mt.Data.Names[idx:end])
+	mt.Cols.Arr.AppendArr(mt.Data.Tagses[idx:end])
 }
 
-// GetColumns gets all messages.
-func (mt *MsgTable) GetColumns(ctx context.Context) (mcs *entity.MsgCols, err error) {
+// AppendFrom appends from Cols to Data (results from table)
+func (mt *MsgTable) AppendFrom(count int, results proto.Results) (err error) {
 
-	mcs = &entity.MsgCols{}
-
-	results, err := flt.Results(mt)
-	if err != nil {
-		return
+	mt.Data.Length += count
+	for _, col := range results {
+		switch col.Name {
+		case "ts":
+			flt.Append(&mt.Data.Timestamps, mt.Cols.Ts)
+		case "severity_text":
+			flt.Append(&mt.Data.SeverityTxts, mt.Cols.SeverityTxt)
+		case "severity_number":
+			flt.Append(&mt.Data.SeverityNums, mt.Cols.SeverityNum)
+		case "body":
+			flt.Append(&mt.Data.Bodies, mt.Cols.Body)
+		case "name":
+			flt.Append(&mt.Data.Names, mt.Cols.Name)
+		case "arr":
+			flt.Append(&mt.Data.Tagses, mt.Cols.Arr)
+		}
+		col.Data.Reset()
 	}
 
-	// query hardcoded here as ch-go will error with "raw block: target: 6 (columns) != 2 (target)"
-	// when selecting only two cols in the query and yet try to use "results" for all 6
-	//
-	// might be nice, certainly more col-oriented,to get one column at a time and merge later?
-	// another approach would be to make "Results" method aware of select fields
-	//
-	// and of course would be straight-forward to pass in a "where" clause if needed
-
-	err = mt.Client.Do(ctx, ch.Query{
-		Body:   fmt.Sprintf("select * from %s", mt.Table),
-		Result: results,
-		OnResult: func(ctx context.Context, block proto.Block) error {
-
-			// MsgTable fields (i.e.: mt.Ts) are the same as provided with "Result: results"
-
-			mcs.Length += block.Rows
-			for _, col := range results {
-				switch col.Name {
-				case "ts":
-					flt.Append(&mcs.Timestamps, mt.Ts)
-				case "severity_text":
-					flt.Append(&mcs.SeverityTxts, mt.SeverityTxt)
-				case "severity_number":
-					flt.Append(&mcs.SeverityNums, mt.SeverityNum)
-				case "body":
-					flt.Append(&mcs.Bodies, mt.Body)
-				case "name":
-					flt.Append(&mcs.Names, mt.Name)
-				case "arr":
-					flt.Append(&mcs.Tagses, mt.Arr)
-				}
-				col.Data.Reset()
-			}
-
-			return mcs.CheckLen()
-		},
-	})
-	return
+	return mt.Data.CheckLen()
 }
